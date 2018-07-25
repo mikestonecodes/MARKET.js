@@ -1,12 +1,31 @@
 import BigNumber from 'bignumber.js';
+import Web3 from 'web3';
 import * as _ from 'lodash';
 
 import { SignedOrder } from '@marketprotocol/types';
 
-import { MarketError, OnOrderStateChangeCallback, OrderState } from '../types';
+import {
+  MarketError,
+  OnOrderStateChangeCallback,
+  OrderState,
+  OrderStateWatcherConfig
+} from '../types';
+import { assert } from '../assert';
+import { ExpirationWatcher } from './ExpirationWatcher';
+import { Utils } from '..';
+
+interface DependentOrderHashes {
+  [makerAddress: string]: {
+    [makerToken: string]: Set<string>;
+  };
+}
 
 interface OrderStateByOrderHash {
   [orderHash: string]: OrderState;
+}
+
+interface OrderByOrderHash {
+  [orderHash: string]: SignedOrder;
 }
 
 /**
@@ -20,6 +39,11 @@ export default class OrderStateWatcher {
   // *****************************************************************
 
   private _orderStateByOrderHashCache: OrderStateByOrderHash = {};
+  private _dependentOrderHashes: DependentOrderHashes = {};
+  private _orderByOrderHash: OrderByOrderHash = {};
+  private _callbackIfExists?: OnOrderStateChangeCallback;
+  private _expirationWatcher: ExpirationWatcher;
+  private _web3: Web3;
 
   // endregion // members
   // region Constructors
@@ -27,8 +51,18 @@ export default class OrderStateWatcher {
   // ****                     Constructors                        ****
   // *****************************************************************
 
-  constructor() {
-    _.noop;
+  constructor(web3: Web3, config?: OrderStateWatcherConfig) {
+    this._web3 = web3;
+    const orderExpirationCheckingIntervalMsIfExists = _.isUndefined(config)
+      ? undefined
+      : config.orderExpirationCheckingIntervalMs;
+    const expirationMarginIfExistsMs = _.isUndefined(config)
+      ? undefined
+      : config.expirationMarginMs;
+    this._expirationWatcher = new ExpirationWatcher(
+      expirationMarginIfExistsMs,
+      orderExpirationCheckingIntervalMsIfExists
+    );
   }
 
   // endregion//Constructors
@@ -48,7 +82,12 @@ export default class OrderStateWatcher {
    * @param {OnOrderStateChangeCallback} callback  callback function
    */
   public subscribe(callback: OnOrderStateChangeCallback): void {
-    _.noop;
+    assert.isFunction('callback', callback);
+    if (!_.isUndefined(this._callbackIfExists)) {
+      throw new Error(MarketError.SubscriptionAlreadyPresent);
+    }
+    this._callbackIfExists = callback;
+    this._expirationWatcher.subscribe(this._onOrderExpired.bind(this));
   }
 
   /**
@@ -60,13 +99,19 @@ export default class OrderStateWatcher {
   }
 
   /**
-   * Adds an order to the order state watcher.  Before the order is added, it's
-   * signature is verified.
+   * Adds an order to the order state watcher.
+   * Before the order is added, it's signature is verified.
    *
-   * @param {SignedOrder} order
+   * @param {SignedOrder} signedOrder
    */
-  public addOrder(orderHash: SignedOrder): void {
-    _.noop;
+  public addOrder(signedOrder: SignedOrder): void {
+    const orderHash = Utils.getOrderHash(signedOrder);
+    assert.isValidSignature(orderHash, signedOrder.ecSignature, signedOrder.maker);
+
+    this._orderByOrderHash[orderHash] = signedOrder;
+    this._addToDependentOrderHashes(orderHash, signedOrder);
+    const expirationUnixTimestampMs = signedOrder.expirationTimestamp.times(1000);
+    this._expirationWatcher.addOrder(orderHash, expirationUnixTimestampMs);
   }
 
   /**
@@ -75,7 +120,14 @@ export default class OrderStateWatcher {
    * @param {string} orderHash The hash of order you wish to stop
    */
   public removeOrder(orderHash: string): void {
-    _.noop;
+    const signedOrder = this._orderByOrderHash[orderHash];
+    if (_.isUndefined(signedOrder)) {
+      return;
+    }
+    delete this._orderByOrderHash[orderHash];
+    delete this._orderStateByOrderHashCache[orderHash];
+
+    this._expirationWatcher.removeOrder(orderHash);
   }
 
   // endregion //Public Methods
@@ -83,6 +135,59 @@ export default class OrderStateWatcher {
   // *****************************************************************
   // ****                     Private Methods                     ****
   // *****************************************************************
+
+  private _onOrderExpired(orderHash: string): void {
+    const orderState: OrderState = {
+      isValid: false,
+      orderHash,
+      error: [MarketError.OrderExpired]
+    };
+
+    if (!_.isUndefined(this._orderByOrderHash[orderHash])) {
+      this.removeOrder(orderHash);
+      if (!_.isUndefined(this._callbackIfExists)) {
+        this._callbackIfExists(null, orderState);
+      }
+    }
+  }
+
+  /**
+   *
+   *
+   * @param {string} orderHash
+   * @param {string} signedOrder
+   */
+  private _addToDependentOrderHashes(orderHash: string, signedOrder: SignedOrder) {
+    if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker])) {
+      this._dependentOrderHashes[signedOrder.maker] = {};
+    }
+    const tokenAddress = '';
+    if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker][signedOrder.maker])) {
+      this._dependentOrderHashes[signedOrder.maker][tokenAddress] = new Set();
+    }
+    this._dependentOrderHashes[signedOrder.maker][tokenAddress].add(orderHash);
+  }
+
+  /**
+   *
+   * @param {string} makerAddress
+   * @param {string} tokenAddress
+   * @param {string} orderHash
+   */
+  private _removeFromDependentOrderHashes(
+    makerAddress: string,
+    tokenAddress: string,
+    orderHash: string
+  ) {
+    this._dependentOrderHashes[makerAddress][tokenAddress].delete(orderHash);
+    if (this._dependentOrderHashes[makerAddress][tokenAddress].size === 0) {
+      delete this._dependentOrderHashes[makerAddress][tokenAddress];
+    }
+    if (_.isEmpty(this._dependentOrderHashes[makerAddress])) {
+      delete this._dependentOrderHashes[makerAddress];
+    }
+  }
+
   // endregion //Private Methods
   // region Event Handlers
   // *****************************************************************
