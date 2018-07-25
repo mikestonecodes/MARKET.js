@@ -47,6 +47,12 @@ describe('OrderStateWatcher', () => {
     });
   });
 
+  describe('unsubscribe', () => {
+    it('should throw error if callback is not set', () => {
+      expect(() => orderStateWatcher.unsubscribe()).toThrow();
+    });
+  });
+
   describe('addOrder', () => {
     it('should throw if order is not signed by maker', async () => {
       const signedOrder = await helper.createOrderAsync();

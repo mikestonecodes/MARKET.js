@@ -95,7 +95,15 @@ export default class OrderStateWatcher {
    *
    */
   public unsubscribe(): void {
-    _.noop;
+    if (
+      _.isUndefined(this._callbackIfExists) ||
+      _.isUndefined(this._cleanupJobIntervalIdIfExists)
+    ) {
+      throw new Error(MarketError.SubscriptionNotFound);
+    }
+
+    delete this._callbackIfExists;
+    this._expirationWatcher.unsubscribe();
   }
 
   /**
