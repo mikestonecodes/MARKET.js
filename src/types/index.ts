@@ -6,3 +6,4 @@ export * from './ContractMetaData';
 export * from './OrderFilledEvent';
 export * from './OrderState';
 export * from './SolidityTypes';
+export * from './EventWatcherCallback';

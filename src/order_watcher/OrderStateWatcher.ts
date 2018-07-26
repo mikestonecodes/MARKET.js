@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { assert } from '../assert';
 import { ExpirationWatcher } from './ExpirationWatcher';
+import EventWatcher from './EventWatcher';
 import { Utils } from '..';
 
 interface DependentOrderHashes {
