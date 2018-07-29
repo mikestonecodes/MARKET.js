@@ -248,7 +248,6 @@ export const IntervalUtils = {
   }
 };
 
-let count = 0;
 /**
  * Converts BigNumber instance to BN
  * The only reason we convert to BN is to remain compatible with `ethABI. soliditySHA3` that

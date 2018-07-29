@@ -7,3 +7,4 @@ export * from './OrderFilledEvent';
 export * from './OrderState';
 export * from './SolidityTypes';
 export * from './EventWatcherCallback';
+export * from './AbiTypes';
