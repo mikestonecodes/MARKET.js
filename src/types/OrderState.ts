@@ -1,12 +1,13 @@
 import BigNumber from 'bignumber.js';
 
 export interface OrderRelevantState {
+  neededMakerCollateral: BigNumber;
   makerCollateralBalance: BigNumber;
-  makerCollateralAllowance: BigNumber;
   makerFeeBalance: BigNumber;
   makerFeeAllowance: BigNumber;
-  remainingMakerFillableQty: BigNumber;
-  remainingTakerFillableQty: BigNumber;
+  remainingFillableQty: BigNumber;
+  remainingMakerFillableQty: BigNumber; // remaining qty fillable by maker
+  remainingTakerFillableQty: BigNumber; // remaining qty fillable by taker
 }
 
 export interface OrderStateValid {
@@ -18,7 +19,7 @@ export interface OrderStateValid {
 export interface OrderStateInvalid {
   isValid: false;
   orderHash: string;
-  error: [string];
+  error: string;
 }
 
 export type OrderState = OrderStateValid | OrderStateInvalid;

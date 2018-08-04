@@ -4,6 +4,7 @@ import { BigNumber } from 'bignumber.js';
 import { MarketError } from '../types';
 import { SignedOrder } from '@marketprotocol/types';
 import { Market } from '../Market';
+import { constants } from '../constants';
 
 /**
  * This class includes the functionality to calculate remaining fillable amount of the order.
@@ -81,6 +82,11 @@ export class RemainingFillableCalculator {
 
   public async computeRemainingTakerFillable(): Promise<BigNumber> {
     const makerFillable = await this.computeRemainingMakerFillable();
+    if (this._signedOrder.taker === constants.NULL_ADDRESS) {
+      // open ended order so makers fillable quantity
+      return makerFillable;
+    }
+
     const takerAvailableCollateral = await this._getAvailableCollateral(this._signedOrder.taker);
     const hasAvailableFeeFunds: boolean = await this._hasTakerSufficientFundsForFee();
 

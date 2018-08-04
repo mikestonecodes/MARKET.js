@@ -761,6 +761,15 @@ export class ContractWrapper {
   }
 
   /**
+   *
+   * @param marketContractAddress Market Contract Address
+   */
+  public async getCollateralTokenAddressAsync(marketContractAddress: string): Promise<string> {
+    const marketContract: MarketContract = new MarketContract(this._web3, marketContractAddress);
+    return marketContract.COLLATERAL_TOKEN_ADDRESS;
+  }
+
+  /**
    * Retrieves the owners allowance in baseUnits set to the spender's address.
    * @param {string} tokenAddress     The hex encoded contract Ethereum address where the ERC20 token is deployed.
    * @param {string} ownerAddress     The hex encoded user Ethereum address whose allowance to spenderAddress

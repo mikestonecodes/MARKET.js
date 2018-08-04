@@ -78,7 +78,9 @@ export class OrderFilledCancelledLazyStore {
    * @param {string} orderHash
    */
   public deleteQtyFilledOrCancelled(marketContractAddress: string, orderHash: string) {
-    delete this._stores[marketContractAddress].filledOrCancelledQty[orderHash];
+    if (!_.isUndefined(this._stores[marketContractAddress])) {
+      delete this._stores[marketContractAddress].filledOrCancelledQty[orderHash];
+    }
   }
 
   /***

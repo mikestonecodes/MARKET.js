@@ -53,6 +53,11 @@ export interface OrderCancelledEventArgs {
   orderHash: string;
 }
 
+export interface UpdatedUserBalanceEventArgs {
+  user: string;
+  balance: BigNumber;
+}
+
 export type TokenContractEventsArgs = ApprovalContractEventArgs | TransferContractEventArgs;
 
 export interface MarketContractEventArgs {}

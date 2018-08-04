@@ -12,19 +12,21 @@ import {
 } from '../types';
 import { Utils } from '../lib/Utils';
 import { RemainingFillableCalculator } from '../order_watcher/RemainingFillableCalc';
-import { MarketContractWrapper } from '../contract_wrappers/MarketContractWrapper';
+import { Market } from '..';
+import { OrderCollateralPoolAndTokenLazyStore } from '../OrderCollateralPoolAndTokenLazyStore';
 
 /**
- * Utility for computing and returning the state of an order.
+ * Utility class for computing and returning the state of an order.
  */
 export default class OrderStateUtils {
   // region Members
   // *****************************************************************
   // ****                     Members                             ****
   // *****************************************************************
-  private _marketWrapper: MarketContractWrapper;
+  private _market: Market;
   private _orderFilledCancelledLazyStore: OrderFilledCancelledLazyStore;
   private _balanceAndAllowanceLazyStore: BalanceAndAllowanceLazyStore;
+  private _collateralPoolAndTokenAddressLazyStore: OrderCollateralPoolAndTokenLazyStore;
 
   // endregion // members
   // region Constructors
@@ -33,13 +35,15 @@ export default class OrderStateUtils {
   // *****************************************************************
 
   constructor(
-    marketWrapper: MarketContractWrapper,
+    contractWrapper: Market,
     balanceAndProxyAllowanceLazyStore: BalanceAndAllowanceLazyStore,
-    orderFilledCancelledLazyStore: OrderFilledCancelledLazyStore
+    orderFilledCancelledLazyStore: OrderFilledCancelledLazyStore,
+    collateralPoolAndTokenAddressLazyStore: OrderCollateralPoolAndTokenLazyStore
   ) {
-    this._marketWrapper = marketWrapper;
+    this._market = contractWrapper;
     this._balanceAndAllowanceLazyStore = balanceAndProxyAllowanceLazyStore;
     this._orderFilledCancelledLazyStore = orderFilledCancelledLazyStore;
+    this._collateralPoolAndTokenAddressLazyStore = collateralPoolAndTokenAddressLazyStore;
   }
 
   // endregion//Constructors
@@ -52,23 +56,24 @@ export default class OrderStateUtils {
     signedOrder: SignedOrder,
     orderRelevantState: OrderRelevantState
   ): void {
+    if (orderRelevantState.makerCollateralBalance.lt(orderRelevantState.neededMakerCollateral)) {
+      throw new Error(MarketError.InsufficientCollateralBalance);
+    }
+
     if (orderRelevantState.remainingMakerFillableQty.eq(0)) {
       throw new Error(MarketError.OrderDead);
     }
 
-    if (orderRelevantState.makerCollateralBalance.eq(0)) {
-      throw new Error(MarketError.InsufficientCollateralBalance);
+    const notEnoughFees = signedOrder.makerFee.gt(orderRelevantState.makerFeeBalance);
+    const notEnoughtFeeAllowance = signedOrder.makerFee.gt(orderRelevantState.makerFeeAllowance);
+
+    if (notEnoughFees) {
+      throw new Error(MarketError.InsufficientBalanceForTransfer);
     }
-    if (orderRelevantState.makerCollateralAllowance.eq(0)) {
+
+    if (notEnoughtFeeAllowance && notEnoughFees) {
+      // only throws if fees is not enough
       throw new Error(MarketError.InsufficientAllowanceForTransfer);
-    }
-    if (!signedOrder.makerFee.eq(0)) {
-      if (orderRelevantState.makerFeeBalance.eq(0)) {
-        throw new Error(MarketError.InsufficientBalanceForTransfer);
-      }
-      if (orderRelevantState.makerFeeAllowance.eq(0)) {
-        throw new Error(MarketError.InsufficientAllowanceForTransfer);
-      }
     }
   }
 
@@ -78,9 +83,9 @@ export default class OrderStateUtils {
   // ****                     Public Methods                      ****
   // *****************************************************************
   public async getOrderStateAsync(signedOrder: SignedOrder): Promise<OrderState> {
-    const orderRelevantState = await this.getOrderRelevantStateAsync(signedOrder);
     const orderHash = Utils.getOrderHash(signedOrder);
     try {
+      const orderRelevantState = await this.getOrderRelevantStateAsync(signedOrder);
       OrderStateUtils._validateIfOrderIsValid(signedOrder, orderRelevantState);
       const orderState: OrderStateValid = {
         isValid: true,
@@ -99,51 +104,63 @@ export default class OrderStateUtils {
   }
 
   public async getOrderRelevantStateAsync(signedOrder: SignedOrder): Promise<OrderRelevantState> {
-    const mktTokenAddress = '';
+    const mktTokenAddress = this._market.mktTokenContract.address;
     const mtkContractAddress = signedOrder.contractAddress;
-    const marketCollateralPoolAddress = await this._marketWrapper.getCollateralPoolContractAddressAsync(
-      mtkContractAddress
+    const collateralPoolAddress = await this._collateralPoolAndTokenAddressLazyStore.getCollateralPoolAddressAsync(
+      signedOrder
+    );
+    const collateralTokenAddress = await this._collateralPoolAndTokenAddressLazyStore.getCollateralTokenAddressAsync(
+      signedOrder
+    );
+
+    // TODO: collateral values should be cached too.
+    const neededMakerCollateral = await this._market.calculateNeededCollateralAsync(
+      mtkContractAddress,
+      signedOrder.orderQty,
+      signedOrder.price
     );
 
     const orderHash = Utils.getOrderHash(signedOrder);
-    const makerCollateralBalance = await this._balanceAndAllowanceLazyStore.getBalanceAsync(
-      marketCollateralPoolAddress,
+
+    const makerCollateralBalance = await this._balanceAndAllowanceLazyStore.getCollateralBalanceAsync(
+      mtkContractAddress,
       signedOrder.maker
     );
-    const makerCollateralAllowance = await this._balanceAndAllowanceLazyStore.getAllowanceAsync(
-      marketCollateralPoolAddress,
-      signedOrder.maker
-    );
+
     const makerFeeBalance = await this._balanceAndAllowanceLazyStore.getBalanceAsync(
       mktTokenAddress,
       signedOrder.maker
     );
+
     const makerFeeAllowance = await this._balanceAndAllowanceLazyStore.getAllowanceAsync(
       mktTokenAddress,
-      signedOrder.maker
+      signedOrder.maker,
+      signedOrder.feeRecipient
     );
     const qtyFilledOrCancelled = await this._orderFilledCancelledLazyStore.getQtyFilledOrCancelledAsync(
       mtkContractAddress,
       orderHash
     );
     const remainingFillableQty = signedOrder.orderQty.minus(qtyFilledOrCancelled);
+    const remainingFillableCalculator = new RemainingFillableCalculator(
+      this._market,
+      collateralPoolAddress,
+      collateralTokenAddress,
+      signedOrder,
+      orderHash
+    );
 
-    // const remainingFillableCalculator = new RemainingFillableCalculator(
-    //   '',
-    //   '',
-    //   '',
-    //   signedOrder,
-    //   orderHash
-    // );
-    // const remainingMakerFillableQty = remainingFillableCalculator.computeRemainingMakerFillable();
-    // const remainingTakerFillableQty = remainingFillableCalculator.computeRemainingTakerFillable();
+    // TODO(perfect): refactor this to prevent network request all the time.
+    const remainingMakerFillableQty = await remainingFillableCalculator.computeRemainingMakerFillable();
+    const remainingTakerFillableQty = await remainingFillableCalculator.computeRemainingTakerFillable();
     const orderRelevantState = {
+      neededMakerCollateral,
       makerCollateralBalance,
-      makerCollateralAllowance,
       makerFeeBalance,
       makerFeeAllowance,
-      remainingMakerFillableQty: remainingFillableQty,
-      remainingTakerFillableQty: remainingFillableQty
+      remainingFillableQty,
+      remainingMakerFillableQty,
+      remainingTakerFillableQty
     };
     return orderRelevantState;
   }

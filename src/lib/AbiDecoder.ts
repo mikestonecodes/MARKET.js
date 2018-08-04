@@ -2,9 +2,9 @@ import { BigNumber } from 'bignumber.js';
 import * as _ from 'lodash';
 import * as abiDecoder from 'abi-decoder';
 
-import { DecodedLogEntry, LogEntry } from '@marketprotocol/types';
+import { Artifact, DecodedLogEntry, LogEntry } from '@marketprotocol/types';
 
-import { AbiDefinition } from '../types';
+import { ContractAbi } from '../types';
 
 import {} from './Utils';
 
@@ -27,8 +27,8 @@ export class AbiDecoder {
   // *****************************************************************
   // ****                     Constructors                        ****
   // *****************************************************************
-  constructor(abiArrays: AbiDefinition[][]) {
-    _.forEach(abiArrays, abiDecoder.addABI.bind(abiDecoder));
+  constructor(artifacts: Artifact[]) {
+    _.forEach(artifacts, artifact => abiDecoder.addABI(artifact.abi));
   }
   // endregion//Constructors
 
@@ -37,8 +37,13 @@ export class AbiDecoder {
    *
    * @param log Log Entry to decode
    */
-  public decodeLogEntryEvent<ArgsType>(log: LogEntry): DecodedLogEntry<ArgsType> {
-    const [decodedLog] = abiDecoder.decodeLogs([log]);
+  public decodeLogEntryEvent<ArgsType>(log: LogEntry): DecodedLogEntry<ArgsType> | LogEntry {
+    let [decodedLog] = abiDecoder.decodeLogs([log]);
+
+    if (_.isUndefined(decodedLog)) {
+      return log;
+    }
+
     return {
       ...log,
       event: decodedLog.name,

@@ -15,14 +15,14 @@ import {
 import { assert } from '../assert';
 import { ExpirationWatcher } from './ExpirationWatcher';
 import EventWatcher from './EventWatcher';
-import { Utils } from '..';
+import { Market, Utils } from '..';
 import { OrderFilledCancelledLazyStore } from '../OrderFilledCancelledLazyStore';
 import { BalanceAndAllowanceLazyStore } from '../BalanceAndAllowanceLazyStore';
-import { MarketContractWrapper } from '../contract_wrappers/MarketContractWrapper';
 import { IntervalUtils } from '../lib/Utils';
 import { AbiDecoder } from '../lib/AbiDecoder';
 import {
   ApprovalContractEventArgs,
+  CollateralPoolEvents,
   ContractEventArgs,
   MarketContractEvents,
   MarketTokenEvents,
@@ -30,10 +30,11 @@ import {
   OrderFilledEventArgs,
   TokenEvents,
   TransferContractEventArgs,
+  UpdatedUserBalanceEventArgs,
   UserUpdatedLockedBalanceEventArgs
 } from '../types/ContractEvents';
-import { ERC20TokenContractWrapper } from '../contract_wrappers/ERC20TokenContractWrapper';
 import OrderStateUtils from '../utilities/OrderStateUtils';
+import { OrderCollateralPoolAndTokenLazyStore } from '../OrderCollateralPoolAndTokenLazyStore';
 
 interface DependentOrderHashes {
   [makerAddress: string]: {
@@ -69,9 +70,10 @@ export default class OrderStateWatcher {
   private _eventWatcher: EventWatcher;
   private _orderFilledCancelledStore: OrderFilledCancelledLazyStore;
   private _collateralBalanceAndAllowanceStore: BalanceAndAllowanceLazyStore;
+  private _collateralPoolAndTokenAddressStore: OrderCollateralPoolAndTokenLazyStore;
   private _web3: Web3;
   private _abiDecoder: AbiDecoder;
-  private _marketContractWrapper: MarketContractWrapper;
+  private _market: Market;
   private _orderStateUtils: OrderStateUtils;
   private _cleanupJobInterval: number;
   private _cleanupJobIntervalIdIfExists?: NodeJS.Timer;
@@ -82,22 +84,36 @@ export default class OrderStateWatcher {
   // ****                     Constructors                        ****
   // *****************************************************************
 
+  /**
+   *
+   * @param {Web3} web3
+   * @param {AbiDecoder} abiDecoder
+   * @param {Market} market
+   * @param {OrderStateWatcherConfig} config
+   */
   constructor(
     web3: Web3,
     abiDecoder: AbiDecoder,
-    tokenWrapper: ERC20TokenContractWrapper,
-    marketContractWrapper: MarketContractWrapper,
+    market: Market,
     config?: OrderStateWatcherConfig
   ) {
     this._web3 = web3;
     this._abiDecoder = abiDecoder;
-    this._marketContractWrapper = marketContractWrapper;
-    this._orderFilledCancelledStore = new OrderFilledCancelledLazyStore(marketContractWrapper);
-    this._collateralBalanceAndAllowanceStore = new BalanceAndAllowanceLazyStore(tokenWrapper);
+    this._market = market;
+    this._orderFilledCancelledStore = new OrderFilledCancelledLazyStore(
+      market.marketContractWrapper
+    );
+    this._collateralBalanceAndAllowanceStore = new BalanceAndAllowanceLazyStore(
+      market.marketContractWrapper
+    );
+    this._collateralPoolAndTokenAddressStore = new OrderCollateralPoolAndTokenLazyStore(
+      market.marketContractWrapper
+    );
     this._orderStateUtils = new OrderStateUtils(
-      this._marketContractWrapper,
+      this._market,
       this._collateralBalanceAndAllowanceStore,
-      this._orderFilledCancelledStore
+      this._orderFilledCancelledStore,
+      this._collateralPoolAndTokenAddressStore
     );
     const orderExpirationCheckingIntervalMsIfExists = _.isUndefined(config)
       ? undefined
@@ -181,12 +197,12 @@ export default class OrderStateWatcher {
    *
    * @param {SignedOrder} signedOrder
    */
-  public addOrder(signedOrder: SignedOrder): void {
+  public async addOrder(signedOrder: SignedOrder): Promise<void> {
     const orderHash = Utils.getOrderHash(signedOrder);
     assert.isValidSignature(orderHash, signedOrder.ecSignature, signedOrder.maker);
 
     this._orderByOrderHash[orderHash] = signedOrder;
-    this._addToDependentOrderHashes(orderHash, signedOrder);
+    await this._addToDependentOrderHashesAsync(orderHash, signedOrder);
     const expirationUnixTimestampMs = signedOrder.expirationTimestamp.times(1000);
     this._expirationWatcher.addOrder(orderHash, expirationUnixTimestampMs);
   }
@@ -196,13 +212,29 @@ export default class OrderStateWatcher {
    *
    * @param {string} orderHash The hash of order you wish to stop
    */
-  public removeOrder(orderHash: string): void {
+  public async removeOrder(orderHash: string): Promise<void> {
     const signedOrder = this._orderByOrderHash[orderHash];
     if (_.isUndefined(signedOrder)) {
       return;
     }
     delete this._orderByOrderHash[orderHash];
     delete this._orderStateByOrderHashCache[orderHash];
+
+    // remove dependent market token orders
+    const mktTokenAddress = this._getMKTTokenAddress();
+    this._removeFromDependentOrderHashes(signedOrder.maker, mktTokenAddress, orderHash);
+
+    // remove dependent collateral token orders
+    const collateralTokenAddress = await this._collateralPoolAndTokenAddressStore.getCollateralTokenAddressAsync(
+      signedOrder
+    );
+    this._removeFromDependentOrderHashes(signedOrder.maker, collateralTokenAddress, orderHash);
+
+    // remove dependent collateral pool orders
+    const collateralPoolAddress = await this._collateralPoolAndTokenAddressStore.getCollateralPoolAddressAsync(
+      signedOrder
+    );
+    this._removeFromDependentOrderHashes(signedOrder.maker, collateralPoolAddress, orderHash);
 
     this._expirationWatcher.removeOrder(orderHash);
   }
@@ -217,7 +249,7 @@ export default class OrderStateWatcher {
     const orderState: OrderState = {
       isValid: false,
       orderHash,
-      error: [MarketError.OrderExpired]
+      error: MarketError.OrderExpired
     };
 
     if (!_.isUndefined(this._orderByOrderHash[orderHash])) {
@@ -235,22 +267,38 @@ export default class OrderStateWatcher {
    * @param {string} orderHash
    * @param {string} signedOrder
    */
-  private _addToDependentOrderHashes(orderHash: string, signedOrder: SignedOrder) {
+  private async _addToDependentOrderHashesAsync(
+    orderHash: string,
+    signedOrder: SignedOrder
+  ): Promise<void> {
     if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker])) {
       this._dependentOrderHashes[signedOrder.maker] = {};
     }
 
-    const collateralTokenAddress = '';
+    // set related orders for collateral token
+    const collateralTokenAddress = await this._collateralPoolAndTokenAddressStore.getCollateralTokenAddressAsync(
+      signedOrder
+    );
     if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker][collateralTokenAddress])) {
       this._dependentOrderHashes[signedOrder.maker][collateralTokenAddress] = new Set();
     }
     this._dependentOrderHashes[signedOrder.maker][collateralTokenAddress].add(orderHash);
 
-    const mktContractAddress = '';
-    if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker][mktContractAddress])) {
-      this._dependentOrderHashes[signedOrder.maker][mktContractAddress] = new Set();
+    // set related orders for collateral pool
+    const collateralPoolAddress = await this._collateralPoolAndTokenAddressStore.getCollateralPoolAddressAsync(
+      signedOrder
+    );
+    if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker][collateralPoolAddress])) {
+      this._dependentOrderHashes[signedOrder.maker][collateralPoolAddress] = new Set();
     }
-    this._dependentOrderHashes[signedOrder.maker][mktContractAddress].add(orderHash);
+    this._dependentOrderHashes[signedOrder.maker][collateralPoolAddress].add(orderHash);
+
+    // set related orders for market token
+    const mktTokenAddress = this._getMKTTokenAddress();
+    if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker][mktTokenAddress])) {
+      this._dependentOrderHashes[signedOrder.maker][mktTokenAddress] = new Set();
+    }
+    this._dependentOrderHashes[signedOrder.maker][mktTokenAddress].add(orderHash);
   }
 
   /**
@@ -264,51 +312,55 @@ export default class OrderStateWatcher {
     tokenAddress: string,
     orderHash: string
   ) {
-    this._dependentOrderHashes[makerAddress][tokenAddress].delete(orderHash);
-    if (this._dependentOrderHashes[makerAddress][tokenAddress].size === 0) {
-      delete this._dependentOrderHashes[makerAddress][tokenAddress];
-    }
-    if (_.isEmpty(this._dependentOrderHashes[makerAddress])) {
-      delete this._dependentOrderHashes[makerAddress];
+    if (!_.isUndefined(this._dependentOrderHashes[makerAddress][tokenAddress])) {
+      this._dependentOrderHashes[makerAddress][tokenAddress].delete(orderHash);
+      if (this._dependentOrderHashes[makerAddress][tokenAddress].size === 0) {
+        delete this._dependentOrderHashes[makerAddress][tokenAddress];
+      }
+      if (_.isEmpty(this._dependentOrderHashes[makerAddress])) {
+        delete this._dependentOrderHashes[makerAddress];
+      }
     }
   }
 
   private async _cleanupAsync(): Promise<void> {
     for (const orderHash of _.keys(this._orderByOrderHash)) {
-      this._cleanupOrderRelatedState(orderHash);
+      await this._cleanupOrderRelatedStateAsync(orderHash);
       await this._emitRevalidateOrdersAsync([orderHash]);
     }
   }
 
-  private _cleanupOrderRelatedState(orderHash: string): void {
+  private async _cleanupOrderRelatedStateAsync(orderHash: string): Promise<void> {
     const signedOrder = this._orderByOrderHash[orderHash];
-    const marketContractAddress = '';
+    const marketContractAddress = signedOrder.contractAddress;
     this._orderFilledCancelledStore.deleteQtyFilledOrCancelled(marketContractAddress, orderHash);
 
-    const collateralTokenAddress = '';
-    const collateralPoolAddress = '';
-    this._collateralBalanceAndAllowanceStore.deleteBalance(signedOrder.maker, signedOrder.maker);
-    this._collateralBalanceAndAllowanceStore.deleteAllowance(
-      collateralTokenAddress,
+    this._collateralBalanceAndAllowanceStore.deleteCollateralBalance(
+      signedOrder.contractAddress,
       signedOrder.maker
     );
-    this._collateralBalanceAndAllowanceStore.deleteBalance(
-      collateralTokenAddress,
-      signedOrder.taker
-    );
-    this._collateralBalanceAndAllowanceStore.deleteAllowance(
-      collateralTokenAddress,
+    this._collateralBalanceAndAllowanceStore.deleteCollateralBalance(
+      signedOrder.contractAddress,
       signedOrder.taker
     );
 
     const mktTokenAddress = this._getMKTTokenAddress();
     if (!signedOrder.makerFee.isZero()) {
       this._collateralBalanceAndAllowanceStore.deleteBalance(mktTokenAddress, signedOrder.maker);
-      this._collateralBalanceAndAllowanceStore.deleteAllowance(mktTokenAddress, signedOrder.maker);
+      this._collateralBalanceAndAllowanceStore.deleteAllowance(
+        mktTokenAddress,
+        signedOrder.maker,
+        signedOrder.feeRecipient
+      );
     }
+
     if (!signedOrder.takerFee.isZero()) {
       this._collateralBalanceAndAllowanceStore.deleteBalance(mktTokenAddress, signedOrder.taker);
-      this._collateralBalanceAndAllowanceStore.deleteAllowance(mktTokenAddress, signedOrder.taker);
+      this._collateralBalanceAndAllowanceStore.deleteAllowance(
+        mktTokenAddress,
+        signedOrder.taker,
+        signedOrder.feeRecipient
+      );
     }
   }
 
@@ -323,7 +375,6 @@ export default class OrderStateWatcher {
       }
       return;
     }
-
     const log = logIfExists as LogEntryEvent;
     const maybeDecodedLog = this._abiDecoder.decodeLogEntryEvent<ContractEventArgs>(log);
     const isLogDecoded = !_.isUndefined(
@@ -336,14 +387,17 @@ export default class OrderStateWatcher {
     const decodedLog = maybeDecodedLog as DecodedLogEntry<ContractEventArgs>;
     let makerToken: string;
     let makerAddress: string;
+    let orderHash: string;
     switch (decodedLog.event) {
       case TokenEvents.Approval:
         // Invalidate cache
         const approvalArgs = decodedLog.args as ApprovalContractEventArgs;
         this._collateralBalanceAndAllowanceStore.deleteAllowance(
           decodedLog.address,
-          approvalArgs.owner
+          approvalArgs.owner,
+          approvalArgs.spender
         );
+
         // Revalidate orders
         makerToken = decodedLog.address;
         makerAddress = approvalArgs.owner;
@@ -355,6 +409,7 @@ export default class OrderStateWatcher {
           await this._emitRevalidateOrdersAsync(orderHashes);
         }
         break;
+
       case TokenEvents.Transfer:
         // Invalidate cache
         const transferArgs = decodedLog.args as TransferContractEventArgs;
@@ -363,6 +418,7 @@ export default class OrderStateWatcher {
           transferArgs.from
         );
         this._collateralBalanceAndAllowanceStore.deleteBalance(decodedLog.address, transferArgs.to);
+
         // Revalidate orders
         makerToken = decodedLog.address;
         makerAddress = transferArgs.from;
@@ -374,30 +430,81 @@ export default class OrderStateWatcher {
           await this._emitRevalidateOrdersAsync(orderHashes);
         }
         break;
+
       case MarketTokenEvents.UserUpdatedLockedBalance:
+        // user has updated his locked tokens
         const updatedArgs = decodedLog.args as UserUpdatedLockedBalanceEventArgs;
-        const mktContractAddress = updatedArgs.contractAddress;
-        const mktUserAddress = updatedArgs.userAddress; // ideally should be maker address
+        makerToken = decodedLog.address;
+        makerAddress = updatedArgs.userAddress; // ideally should be maker address
+
+        // invalidate
+        this._collateralBalanceAndAllowanceStore.deleteBalance(makerToken, makerAddress);
 
         if (
-          !_.isUndefined(this._dependentOrderHashes[mktUserAddress]) &&
-          !_.isUndefined(this._dependentOrderHashes[mktUserAddress][mktContractAddress])
+          !_.isUndefined(this._dependentOrderHashes[makerAddress]) &&
+          !_.isUndefined(this._dependentOrderHashes[makerAddress][makerToken])
         ) {
-          const orderHashes = Array.from(
-            this._dependentOrderHashes[mktUserAddress][mktContractAddress]
-          );
+          const orderHashes = Array.from(this._dependentOrderHashes[makerAddress][makerToken]);
           await this._emitRevalidateOrdersAsync(orderHashes);
         }
         break;
-      case MarketContractEvents.OrderFilled:
+
+      case MarketContractEvents.OrderFilled: {
         const filledOrderArgs = decodedLog.args as OrderFilledEventArgs;
-        makerAddress = filledOrderArgs.maker;
+        orderHash = filledOrderArgs.orderHash;
+        const signedOrder = this._orderByOrderHash[orderHash];
+        if (!_.isUndefined(signedOrder)) {
+          this._orderFilledCancelledStore.deleteQtyFilledOrCancelled(
+            signedOrder.contractAddress,
+            orderHash
+          );
+          await this._emitRevalidateOrdersAsync([orderHash]);
+        }
         break;
-      case MarketContractEvents.OrderCancelled:
-        const OrderCancelledArgs = decodedLog.args as OrderCancelledEventArgs;
+      }
+      case MarketContractEvents.OrderCancelled: {
+        const orderCancelledArgs = decodedLog.args as OrderCancelledEventArgs;
+        orderHash = orderCancelledArgs.orderHash;
+        const signedOrder = this._orderByOrderHash[orderHash];
+        if (!_.isUndefined(signedOrder)) {
+          this._orderFilledCancelledStore.deleteQtyFilledOrCancelled(
+            signedOrder.contractAddress,
+            orderHash
+          );
+          await this._emitRevalidateOrdersAsync([orderHash]);
+        }
         break;
+      }
+      case CollateralPoolEvents.UpdatedUserBalance: {
+        const args = decodedLog.args as UpdatedUserBalanceEventArgs;
+        const collateralPoolAddress = decodedLog.address;
+        makerAddress = args.user;
+
+        if (
+          !_.isUndefined(this._dependentOrderHashes[makerAddress]) &&
+          !_.isUndefined(this._dependentOrderHashes[makerAddress][collateralPoolAddress])
+        ) {
+          const orderHashes = Array.from(
+            this._dependentOrderHashes[makerAddress][collateralPoolAddress]
+          );
+          // first invalidate collateral balance caches
+          for (const hashes of orderHashes) {
+            const signedOrder = this._orderByOrderHash[hashes];
+            if (!_.isUndefined(signedOrder)) {
+              this._collateralBalanceAndAllowanceStore.deleteCollateralBalance(
+                signedOrder.contractAddress,
+                makerAddress
+              );
+            }
+          }
+
+          // next revalidate orders
+          await this._emitRevalidateOrdersAsync(orderHashes);
+        }
+        break;
+      }
       default:
-        _.noop(); // throw utils.spawnSwitchErr('decodedLog.event', decodedLog.event);
+        console.log(`Unhandled switch value: decodedLog.event encountered for ${decodedLog.event}`);
     }
   }
 
@@ -412,13 +519,14 @@ export default class OrderStateWatcher {
       if (!_.isEqual(orderState, this._orderStateByOrderHashCache[orderHash])) {
         // state has changes
         this._orderStateByOrderHashCache[orderHash] = orderState;
+        console.error(orderState);
         this._callbackIfExists(null, orderState);
       }
     }
   }
 
   private _getMKTTokenAddress(): string {
-    return '';
+    return this._market.mktTokenContract.address;
   }
 
   // endregion //Private Methods

@@ -6,13 +6,13 @@ import {
   ERC20,
   MarketCollateralPool,
   MarketContract,
-  MARKETProtocolConfig,
   Order,
+  OrderLib,
   SignedOrder
 } from '@marketprotocol/types';
 
 import { Market, Utils } from '../src';
-import { MarketError, OrderStateWatcherConfig } from '../src/types';
+import { MarketError, MARKETProtocolConfig, OrderStateWatcherConfig } from '../src/types';
 import { constants } from '../src/constants';
 import { createEVMSnapshot, getContractAddress, restoreEVMSnapshot } from './utils';
 
@@ -31,6 +31,7 @@ interface CreateOrderParams {
   feeRecipient?: string;
   orderQty?: number;
   price?: number;
+  salt?: BigNumber;
 }
 
 /**
@@ -43,32 +44,53 @@ export class Helper {
     networkId: constants.NETWORK_ID_TRUFFLE
   };
   public market: Market;
+  public orderLib: OrderLib;
   public orderLibAddress: string;
-  public contractAddress: string;
+  public marketContractAddress: string;
+  public marketContract: MarketContract;
+  public collateralTokenAddress: string;
+  public marketTokenAddress: string;
+  public collateralToken: ERC20;
+  public collateralPoolAddress: string;
+  public deploymentAddress: string;
+  public maker: string;
+  public taker: string;
 
-  private constructor() {
+  constructor() {
     this.web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:9545'));
     this.market = new Market(this.web3.currentProvider, this.config);
     this.orderLibAddress = getContractAddress('OrderLib', constants.NETWORK_ID_TRUFFLE);
+    this.orderLib = new OrderLib(this.web3, this.orderLibAddress);
   }
 
   static async init(): Promise<Helper> {
     const h = new Helper();
-
+    h.deploymentAddress = h.web3.eth.accounts[0];
     const contractAddresses: string[] = await h.market.marketContractRegistry.getAddressWhiteList;
-    h.contractAddress = contractAddresses[0];
+    h.maker = h.ethAccounts[1];
+    h.taker = h.ethAccounts[2];
+
+    h.marketContractAddress = contractAddresses[0];
+    h.marketContract = await MarketContract.createAndValidate(h.web3, h.marketContractAddress);
+
+    h.collateralTokenAddress = await h.marketContract.COLLATERAL_TOKEN_ADDRESS;
+    h.collateralToken = await ERC20.createAndValidate(h.web3, h.collateralTokenAddress);
+    h.collateralPoolAddress = await h.marketContract.MARKET_COLLATERAL_POOL_ADDRESS;
+
+    h.marketTokenAddress = await h.marketContract.MKT_TOKEN_ADDRESS;
 
     return h;
   }
 
   async createOrderAsync({
-    makerAddress = this.web3.eth.accounts[1],
+    makerAddress = this.maker,
     takerAddress = constants.NULL_ADDRESS,
     fees = 0,
     feeRecipient = constants.NULL_ADDRESS,
-    orderQty = 100,
+    orderQty = 10,
     price = 100000,
-    expirationTimeStamp = Math.floor(Date.now() / 1000) + 60 * 60
+    expirationTimeStamp = Math.floor(Date.now() / 1000) + 60 * 60,
+    salt = Utils.generatePseudoRandomSalt()
   }: CreateOrderParams = {}): Promise<SignedOrder> {
     const marketContractAddress = await this._getMarketContractAddressAsync();
 
@@ -78,7 +100,7 @@ export class Helper {
 
     const signedOrder: SignedOrder = await createSignedOrderAsync(
       this.web3.currentProvider,
-      this.orderLibAddress,
+      this.orderLib,
       marketContractAddress,
       new BigNumber(expirationTimeStamp),
       feeRecipient,
@@ -88,11 +110,45 @@ export class Helper {
       feesBN,
       orderQtyBN,
       priceBN,
-      orderQtyBN,
-      Utils.generatePseudoRandomSalt()
+      salt,
+      false
     );
 
     return signedOrder;
+  }
+
+  /**
+   * Prefunds and approve tokens and wallets
+   *
+   */
+  async fundCollateral({
+    address = this.maker,
+    credit = new BigNumber(1e24),
+    fund = true,
+    approve = true,
+    deposit = false
+  }: {
+    address?: string;
+    credit?: BigNumber;
+    fund?: boolean;
+    approve?: Boolean;
+    deposit?: Boolean;
+  } = {}) {
+    if (fund) {
+      await this.collateralToken.transferTx(address, credit).send({ from: this.deploymentAddress });
+    }
+
+    if (approve) {
+      await this.collateralToken
+        .approveTx(this.collateralPoolAddress, credit)
+        .send({ from: address });
+    }
+
+    if (deposit) {
+      await this.market.depositCollateralAsync(this.marketContractAddress, credit, {
+        from: address
+      });
+    }
   }
 
   get ethAccounts(): string[] {

@@ -1,10 +1,12 @@
 import { BigNumber } from 'bignumber.js';
 import * as _ from 'lodash';
 
-import { ERC20TokenContractWrapper } from './contract_wrappers/ERC20TokenContractWrapper';
+import { ContractWrapper } from './contract_wrappers/ContractWrapper';
 
 /**
- * Store to keep track of token balances and collateral allowance
+ * Store to keep track of token balances and allowances
+ *
+ * Also used to keep track of collateral balance
  *
  */
 export class BalanceAndAllowanceLazyStore {
@@ -13,7 +15,7 @@ export class BalanceAndAllowanceLazyStore {
   // ****                     Members                             ****
   // *****************************************************************
 
-  private _tokenWrapper: ERC20TokenContractWrapper;
+  private _contractWrapper: ContractWrapper;
 
   // keep track of balances of tokens
   private _balance: {
@@ -22,10 +24,18 @@ export class BalanceAndAllowanceLazyStore {
     };
   };
 
+  private _collateralBalance: {
+    [marketContractAddress: string]: {
+      [userAddress: string]: BigNumber;
+    };
+  };
+
   // keep track of allowances set
   private _allowance: {
     [tokenAddress: string]: {
-      [userAddress: string]: BigNumber;
+      [userAddress: string]: {
+        [spendersAddress: string]: BigNumber;
+      };
     };
   };
 
@@ -35,9 +45,10 @@ export class BalanceAndAllowanceLazyStore {
   // ****                     Constructors                        ****
   // *****************************************************************
 
-  constructor(tokenWrapper: ERC20TokenContractWrapper) {
-    this._tokenWrapper = tokenWrapper;
+  constructor(contractWrapper: ContractWrapper) {
+    this._contractWrapper = contractWrapper;
     this._balance = {};
+    this._collateralBalance = {};
     this._allowance = {};
   }
 
@@ -54,7 +65,7 @@ export class BalanceAndAllowanceLazyStore {
 
   /**
    * Get balance of user for a token and caches it.
-   * It balance is already cached, the cached value is returned.
+   * If balance is already cached, the cached value is returned.
    *
    * @param {string} tokenAddress Address of token to get balance
    * @param {string} userAddress Address of user
@@ -64,7 +75,7 @@ export class BalanceAndAllowanceLazyStore {
       _.isUndefined(this._balance[tokenAddress]) ||
       _.isUndefined(this._balance[tokenAddress][userAddress])
     ) {
-      const balance = await this._tokenWrapper.getBalanceAsync(tokenAddress, userAddress);
+      const balance = await this._contractWrapper.getBalanceAsync(tokenAddress, userAddress);
       this.setBalance(tokenAddress, userAddress, balance);
     }
     const cachedBalance = this._balance[tokenAddress][userAddress];
@@ -106,21 +117,28 @@ export class BalanceAndAllowanceLazyStore {
    *
    * @param {string} tokenAddress
    * @param {string} userAddress
+   * @param {string} spendersAddress
    */
-  public async getAllowanceAsync(tokenAddress: string, userAddress: string): Promise<BigNumber> {
+  public async getAllowanceAsync(
+    tokenAddress: string,
+    userAddress: string,
+    spendersAddress: string
+  ): Promise<BigNumber> {
     if (
       _.isUndefined(this._allowance[tokenAddress]) ||
-      _.isUndefined(this._allowance[tokenAddress][userAddress])
+      _.isUndefined(
+        this._allowance[tokenAddress][userAddress] ||
+          _.isUndefined(this._allowance[tokenAddress][userAddress][spendersAddress])
+      )
     ) {
-      const collateralPoolAddress = '';
-      const proxyAllowance = await this._tokenWrapper.getAllowanceAsync(
+      const proxyAllowance = await this._contractWrapper.getAllowanceAsync(
         tokenAddress,
         userAddress,
-        collateralPoolAddress
+        spendersAddress
       );
-      this.setAllowance(tokenAddress, userAddress, proxyAllowance);
+      this.setAllowance(tokenAddress, userAddress, spendersAddress, proxyAllowance);
     }
-    const cachedProxyAllowance = this._allowance[tokenAddress][userAddress];
+    const cachedProxyAllowance = this._allowance[tokenAddress][userAddress][spendersAddress];
     return cachedProxyAllowance;
   }
 
@@ -129,13 +147,16 @@ export class BalanceAndAllowanceLazyStore {
    *
    * @param {string} tokenAddress
    * @param {string} userAddress
+   * @param {string} spendersAddress
    * @param {string} allowance
    */
-  public setAllowance(tokenAddress: string, userAddress: string, allowance: BigNumber): void {
-    if (_.isUndefined(this._allowance[tokenAddress])) {
-      this._allowance[tokenAddress] = {};
-    }
-    this._allowance[tokenAddress][userAddress] = allowance;
+  public setAllowance(
+    tokenAddress: string,
+    userAddress: string,
+    spendersAddress: string,
+    allowance: BigNumber
+  ): void {
+    _.set(this._allowance, `${tokenAddress}.${userAddress}.${spendersAddress}`, allowance);
   }
 
   /**
@@ -143,12 +164,80 @@ export class BalanceAndAllowanceLazyStore {
    *
    * @param {string} tokenAddress
    * @param {string} userAddress
+   * @param {string} spendersAddress
    */
-  public deleteAllowance(tokenAddress: string, userAddress: string): void {
+  public deleteAllowance(tokenAddress: string, userAddress: string, spendersAddress: string): void {
     if (!_.isUndefined(this._allowance[tokenAddress])) {
-      delete this._allowance[tokenAddress][userAddress];
+      if (!_.isUndefined(this._allowance[tokenAddress][userAddress])) {
+        delete this._allowance[tokenAddress][userAddress][spendersAddress];
+      }
+
+      // cleanup if empty
+      if (_.isEmpty(this._allowance[tokenAddress][userAddress])) {
+        delete this._allowance[tokenAddress][userAddress];
+      }
+
       if (_.isEmpty(this._allowance[tokenAddress])) {
         delete this._allowance[tokenAddress];
+      }
+    }
+  }
+
+  /**
+   * Get balance of user deposited in the collateral pool.
+   * If balance is already cached, the cached value is returned.
+   *
+   * @param {string} contractAddress Market Contract Address
+   * @param {string} userAddress Address of user
+   * @returns {Promise<BigNumber>} Collateral balance
+   */
+  public async getCollateralBalanceAsync(
+    contractAddress: string,
+    userAddress: string
+  ): Promise<BigNumber> {
+    if (
+      _.isUndefined(this._collateralBalance[contractAddress]) ||
+      _.isUndefined(this._collateralBalance[contractAddress][userAddress])
+    ) {
+      const balance = await this._contractWrapper.getUserAccountBalanceAsync(
+        contractAddress,
+        userAddress
+      );
+      this.setCollateralBalance(contractAddress, userAddress, balance);
+    }
+    const cachedBalance = this._collateralBalance[contractAddress][userAddress];
+    return cachedBalance;
+  }
+
+  /**
+   * Set the collateral balance for the user in the store (cache locally).
+   *
+   * @param {string} contractAddress
+   * @param {string} userAddress
+   * @param {BigNumber} balance
+   */
+  public setCollateralBalance(
+    contractAddress: string,
+    userAddress: string,
+    balance: BigNumber
+  ): void {
+    if (_.isUndefined(this._collateralBalance[contractAddress])) {
+      this._collateralBalance[contractAddress] = {};
+    }
+    this._collateralBalance[contractAddress][userAddress] = balance;
+  }
+
+  /**
+   * Delete the cached collateral balance for this user
+   *
+   * @param {string} contractAddress Market Contract Address
+   * @param {string} userAddress User Address
+   */
+  public deleteCollateralBalance(contractAddress: string, userAddress: string): void {
+    if (!_.isUndefined(this._collateralBalance[contractAddress])) {
+      delete this._collateralBalance[contractAddress][userAddress];
+      if (_.isEmpty(this._collateralBalance[contractAddress])) {
+        delete this._collateralBalance[contractAddress];
       }
     }
   }
@@ -160,6 +249,7 @@ export class BalanceAndAllowanceLazyStore {
   public deleteAll(): void {
     this._balance = {};
     this._allowance = {};
+    this._collateralBalance = {};
   }
   // endregion //Public Methods
   // region Private Methods
