@@ -1,3 +1,4 @@
+import * as _ from 'lodash';
 import BigNumber from 'bignumber.js';
 import { join } from 'path';
 import DoneCallback = jest.DoneCallback;
@@ -15,7 +16,8 @@ import OrderStateWatcher from '../src/order_watcher/OrderStateWatcher';
 import { Helper } from './helper';
 import { Utils } from '../src';
 import { AbiDecoder } from '../src/lib/AbiDecoder';
-import { Artifact } from '@marketprotocol/types';
+import { Artifact, SignedOrder } from '@marketprotocol/types';
+import { DoneCallback, DoneCallback } from '../node_modules/@0xproject/types';
 
 describe('OrderStateWatcher', () => {
   let helper: Helper;
@@ -25,6 +27,7 @@ describe('OrderStateWatcher', () => {
   let snapshotId: string;
   let MarketContractArtifact: Artifact;
   let MarketTokenArtifact: Artifact;
+  let signedOrder: SignedOrder;
 
   beforeAll(async () => {
     helper = await Helper.init();
@@ -32,7 +35,7 @@ describe('OrderStateWatcher', () => {
     MarketContractArtifact = Utils.loadArtifact(join(contractPath, 'MarketContractOraclize.json'));
     MarketTokenArtifact = Utils.loadArtifact(join(contractPath, 'MarketToken.json'));
 
-    // jest.setTimeout(30000);
+    jest.setTimeout(20000);
   });
 
   beforeEach(async () => {
@@ -80,7 +83,7 @@ describe('OrderStateWatcher', () => {
 
   describe('addOrder', () => {
     it('should throw if order is not signed by maker', async () => {
-      const signedOrder = await helper.createOrderAsync();
+      signedOrder = await helper.createOrderAsync();
       signedOrder.maker = helper.ethAccounts[4]; // change maker
       await expect(orderStateWatcher.addOrder(signedOrder)).rejects.toThrow();
     });
@@ -88,7 +91,7 @@ describe('OrderStateWatcher', () => {
 
   describe('removeOrder', () => {
     it('should remove existing order without throwing error', async () => {
-      const signedOrder = await helper.createOrderAsync();
+      signedOrder = await helper.createOrderAsync();
       const orderHash = Utils.getOrderHash(signedOrder);
 
       await orderStateWatcher.addOrder(signedOrder);
@@ -101,83 +104,142 @@ describe('OrderStateWatcher', () => {
     });
   });
 
-  it('should emit OrderStateInvalid when maker has insufficient collateral', (done: DoneCallback) => {
-    (async () => {
-      await helper.fundCollateral({ address: helper.maker, deposit: true });
-
-      const signedOrder = await helper.createOrderAsync();
-      await orderStateWatcher.addOrder(signedOrder);
-      const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
-        expect(orderState.isValid).toEqual(false);
-
-        const invalidOrderState = orderState as OrderStateInvalid;
-        expect(invalidOrderState.error).toEqual(MarketError.InsufficientCollateralBalance);
-      });
-      orderStateWatcher.subscribe(callback);
-
-      // withdraw collateral
-      const initialBalance = await helper.market.getUserAccountBalanceAsync(
-        signedOrder.contractAddress,
-        signedOrder.maker
-      );
-      await helper.market.withdrawCollateralAsync(signedOrder.contractAddress, initialBalance, {
-        from: helper.maker
-      });
-    })().catch(done);
-  });
-
-  it('should emit OrderStateInvalid when order is fully filled', (done: DoneCallback) => {
-    (async () => {
-      await helper.fundCollateral({ address: helper.maker, deposit: true });
-      await helper.fundCollateral({ address: helper.taker, deposit: true });
-
-      const orderQty = 5;
-      const signedOrder = await helper.createOrderAsync({ orderQty });
-      await orderStateWatcher.addOrder(signedOrder);
-      const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
-        expect(orderState.isValid).toEqual(false);
-
-        const invalidOrderState = orderState as OrderStateInvalid;
-        expect(invalidOrderState.error).toEqual(MarketError.OrderDead);
-      });
-      orderStateWatcher.subscribe(callback);
-
-      // trade full quantity
-      const fillableQty = new BigNumber(orderQty);
-      await helper.market.tradeOrderAsync(signedOrder, fillableQty, {
-        from: helper.taker,
-        gas: 400000
-      });
-
-      // mo
-    })().catch(done);
-  });
-
-  it('should emit OrderStateValid when order is partially filled', (done: DoneCallback) => {
-    (async () => {
-      await helper.fundCollateral({ address: helper.maker, deposit: true });
-      await helper.fundCollateral({ address: helper.taker, deposit: true });
-
-      const orderQty = 10;
-      const fillQty = 2;
-      const signedOrder = await helper.createOrderAsync();
+  describe('subscription behaviour', async () => {
+    afterEach(() => {
+      orderStateWatcher.unsubscribe();
       const orderHash = Utils.getOrderHash(signedOrder);
-      await orderStateWatcher.addOrder(signedOrder);
-      const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
-        expect(orderState.isValid).toEqual(true);
-        const validOrderState = orderState as OrderStateValid;
-        expect(validOrderState.orderHash).toEqual(orderHash);
-        expect(validOrderState.orderRelevantState.remainingFillableQty).toEqual(
-          new BigNumber(orderQty - fillQty)
-        );
-      });
-      orderStateWatcher.subscribe(callback);
+      orderStateWatcher.removeOrder(orderHash);
+    });
 
-      // partially fill order
-      await helper.market.tradeOrderAsync(signedOrder, new BigNumber(fillQty), {
-        from: helper.taker,
-        gas: 400000
-      });
-    })().catch(done);
+    it('should emit OrderStateInvalid when maker has insufficient collateral', (done: DoneCallback) => {
+      (async () => {
+        await helper.fundCollateral({ address: helper.maker, deposit: true });
+
+        signedOrder = await helper.createOrderAsync();
+        await orderStateWatcher.addOrder(signedOrder);
+        const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
+          expect(orderState.isValid).toEqual(false);
+
+          const invalidOrderState = orderState as OrderStateInvalid;
+          expect(invalidOrderState.error).toEqual(MarketError.InsufficientCollateralBalance);
+        });
+        orderStateWatcher.subscribe(callback);
+
+        // withdraw collateral
+        const initialBalance = await helper.market.getUserAccountBalanceAsync(
+          signedOrder.contractAddress,
+          signedOrder.maker
+        );
+        await helper.market.withdrawCollateralAsync(signedOrder.contractAddress, initialBalance, {
+          from: helper.maker
+        });
+      })().catch(done);
+    });
+
+    it('should emit OrderStateInvalid when order is fully filled', (done: DoneCallback) => {
+      (async () => {
+        await helper.fundCollateral({ address: helper.maker, deposit: true });
+        await helper.fundCollateral({ address: helper.taker, deposit: true });
+
+        const orderQty = 5;
+        signedOrder = await helper.createOrderAsync({ orderQty });
+        await orderStateWatcher.addOrder(signedOrder);
+        const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
+          expect(orderState.isValid).toBeFalsy();
+          const invalidOrderState = orderState as OrderStateInvalid;
+          expect(invalidOrderState.error).toEqual(MarketError.OrderDead);
+        });
+        orderStateWatcher.subscribe(callback);
+
+        // trade full quantity
+        const fillableQty = new BigNumber(orderQty);
+        await helper.market.tradeOrderAsync(signedOrder, fillableQty, {
+          from: helper.taker,
+          gas: 400000
+        });
+      })().catch(done);
+    });
+
+    it('should emit OrderStateValid when order is partially filled', (done: DoneCallback) => {
+      (async () => {
+        await helper.fundCollateral({ address: helper.maker, deposit: true });
+        await helper.fundCollateral({ address: helper.taker, deposit: true });
+
+        const orderQty = 10;
+        const fillQty = 2;
+        signedOrder = await helper.createOrderAsync();
+        const orderHash = Utils.getOrderHash(signedOrder);
+        await orderStateWatcher.addOrder(signedOrder);
+        const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
+          expect(orderState.isValid).toBeTruthy();
+          const validOrderState = orderState as OrderStateValid;
+          expect(validOrderState.orderHash).toEqual(orderHash);
+          expect(validOrderState.orderRelevantState.remainingFillableQty).toEqual(
+            new BigNumber(orderQty - fillQty)
+          );
+        });
+        orderStateWatcher.subscribe(callback);
+
+        // partially fill order
+        await helper.market.tradeOrderAsync(signedOrder, new BigNumber(fillQty), {
+          from: helper.taker,
+          gas: 400000
+        });
+      })().catch(done);
+    });
+
+    it('should not emit an orderState event for irrelevant transfers', (done: DoneCallback) => {
+      (async () => {
+        await helper.fundCollateral({ address: helper.maker, deposit: true });
+        await helper.fundCollateral({ address: helper.taker, deposit: true });
+
+        signedOrder = await helper.createOrderAsync();
+        await orderStateWatcher.addOrder(signedOrder);
+        const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
+          throw new Error('OrderState callback for irrelevant transfer');
+        });
+        orderStateWatcher.subscribe(callback);
+
+        // transfer marketToken
+        const transferAmount = new BigNumber(2);
+        await helper.marketToken.transferTx(helper.maker, transferAmount).send({
+          from: helper.ethAccounts[0]
+        });
+        setTimeout(() => {
+          done();
+        }, 10000);
+      })().catch(done);
+    });
+
+    it('should not emit OrderStateInvalid if maker removes locked MKT tokens', (done: DoneCallback) => {
+      (async () => {
+        const feeRecipient = helper.ethAccounts[5];
+        const fees = 6;
+        await helper.fundCollateral({ address: helper.maker, deposit: true });
+        await helper.fundCollateral({ address: helper.taker, deposit: true });
+        await helper.fundMKT({
+          address: helper.maker,
+          credit: new BigNumber(fees),
+          approvalAddress: feeRecipient
+        });
+        await helper.fundMKT({ address: helper.taker, approvalAddress: feeRecipient });
+
+        signedOrder = await helper.createOrderAsync({ fees, feeRecipient });
+        const orderHash = Utils.getOrderHash(signedOrder);
+        await orderStateWatcher.addOrder(signedOrder);
+
+        const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
+          expect(orderState.isValid).toBeFalsy();
+          const validOrderState = orderState as OrderStateInvalid;
+          expect(validOrderState.orderHash).toEqual(orderHash);
+          expect(validOrderState.error).toEqual(MarketError.InsufficientBalanceForTransfer);
+        });
+        orderStateWatcher.subscribe(callback);
+
+        // transfer fees away
+        const randomRecipient = helper.ethAccounts[4];
+        await helper.marketToken.transferTx(randomRecipient, fees).send({ from: helper.maker });
+      })().catch(done);
+    });
   });
 });

@@ -1,15 +1,9 @@
+import * as _ from 'lodash';
 import { BigNumber } from 'bignumber.js';
 import Web3 from 'web3';
 
 // Types
-import {
-  ERC20,
-  MarketCollateralPool,
-  MarketContract,
-  Order,
-  OrderLib,
-  SignedOrder
-} from '@marketprotocol/types';
+import { ERC20, MarketContract, OrderLib, SignedOrder } from '@marketprotocol/types';
 
 import { Market, Utils } from '../src';
 import { MarketError, MARKETProtocolConfig, OrderStateWatcherConfig } from '../src/types';
@@ -51,6 +45,7 @@ export class Helper {
   public collateralTokenAddress: string;
   public marketTokenAddress: string;
   public collateralToken: ERC20;
+  public marketToken: ERC20;
   public collateralPoolAddress: string;
   public deploymentAddress: string;
   public maker: string;
@@ -78,6 +73,7 @@ export class Helper {
     h.collateralPoolAddress = await h.marketContract.MARKET_COLLATERAL_POOL_ADDRESS;
 
     h.marketTokenAddress = await h.marketContract.MKT_TOKEN_ADDRESS;
+    h.marketToken = await ERC20.createAndValidate(h.web3, h.marketTokenAddress);
 
     return h;
   }
@@ -148,6 +144,23 @@ export class Helper {
       await this.market.depositCollateralAsync(this.marketContractAddress, credit, {
         from: address
       });
+    }
+  }
+
+  /**
+   * Funds and approves mkttoken.
+   * if approvalAddress is undefined no approval will be done.
+   *
+   */
+  async fundMKT({
+    address,
+    approvalAddress,
+    credit = new BigNumber(10)
+  }: { address?: string; approvalAddress?: string; credit?: BigNumber } = {}) {
+    await this.marketToken.transferTx(address, credit).send({ from: this.deploymentAddress });
+
+    if (!_.isUndefined(approvalAddress)) {
+      await this.marketToken.approveTx(approvalAddress, credit).send({ from: address });
     }
   }
 

@@ -131,7 +131,7 @@ export class RemainingFillableCalculator {
   private async _getAvailableFeeFunds(accountAddress: string): Promise<BigNumber> {
     const allowance = new BigNumber(
       await this._market.marketContractWrapper.getAllowanceAsync(
-        this._collateralTokenAddress,
+        this._market.mktTokenContract.address,
         accountAddress,
         this._signedOrder.feeRecipient
       )
@@ -147,7 +147,7 @@ export class RemainingFillableCalculator {
     }
 
     const funds = await this._market.marketContractWrapper.getBalanceAsync(
-      this._collateralTokenAddress,
+      this._market.mktTokenContract.address,
       accountAddress
     );
     return funds;

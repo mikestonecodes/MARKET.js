@@ -113,7 +113,7 @@ export default class OrderStateUtils {
       signedOrder
     );
 
-    // TODO: collateral values should be cached too.
+    // TODO: needed collateral values should be cached too.
     const neededMakerCollateral = await this._market.calculateNeededCollateralAsync(
       mtkContractAddress,
       signedOrder.orderQty,
