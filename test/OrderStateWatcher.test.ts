@@ -1,4 +1,3 @@
-import * as _ from 'lodash';
 import BigNumber from 'bignumber.js';
 import { join } from 'path';
 import DoneCallback = jest.DoneCallback;
@@ -12,12 +11,11 @@ import {
 } from '../src/types';
 import { createEVMSnapshot, reportNodeCallbackErrors, restoreEVMSnapshot } from './utils';
 
-import OrderStateWatcher from '../src/order_watcher/OrderStateWatcher';
+import { OrderStateWatcher } from '../src/order_watcher/OrderStateWatcher';
 import { Helper } from './helper';
 import { Utils } from '../src';
 import { AbiDecoder } from '../src/lib/AbiDecoder';
 import { Artifact, SignedOrder } from '@marketprotocol/types';
-import { DoneCallback, DoneCallback } from '../node_modules/@0xproject/types';
 
 describe('OrderStateWatcher', () => {
   let helper: Helper;

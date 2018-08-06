@@ -26,7 +26,7 @@ enum LogEventState {
 /**
  * The EventWatcher watches for blockchain events
  */
-export default class EventWatcher {
+export class EventWatcher {
   // region Members
   // *****************************************************************
   // ****                     Members                             ****

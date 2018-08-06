@@ -18,7 +18,7 @@ import { OrderCollateralPoolAndTokenLazyStore } from '../OrderCollateralPoolAndT
 /**
  * Utility class for computing and returning the state of an order.
  */
-export default class OrderStateUtils {
+export class OrderStateUtils {
   // region Members
   // *****************************************************************
   // ****                     Members                             ****

@@ -6,8 +6,8 @@ import DoneCallback = jest.DoneCallback;
 
 import { LogEntry } from '@marketprotocol/types';
 
-import { createEVMSnapshot, reportNodeCallbackErrors, restoreEVMSnapshot } from './utils';
-import EventWatcher from '../src/order_watcher/EventWatcher';
+import { reportNodeCallbackErrors } from './utils';
+import { EventWatcher } from '../src/order_watcher/EventWatcher';
 import { LogEntryEvent } from '../src/types';
 
 describe('EventWatcher', () => {

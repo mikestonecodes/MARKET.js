@@ -14,7 +14,7 @@ import {
 } from '../types';
 import { assert } from '../assert';
 import { ExpirationWatcher } from './ExpirationWatcher';
-import EventWatcher from './EventWatcher';
+import { EventWatcher } from './EventWatcher';
 import { Market, Utils } from '..';
 import { OrderFilledCancelledLazyStore } from '../OrderFilledCancelledLazyStore';
 import { BalanceAndAllowanceLazyStore } from '../BalanceAndAllowanceLazyStore';
@@ -33,7 +33,7 @@ import {
   UpdatedUserBalanceEventArgs,
   UserUpdatedLockedBalanceEventArgs
 } from '../types/ContractEvents';
-import OrderStateUtils from '../utilities/OrderStateUtils';
+import { OrderStateUtils } from '../utilities/OrderStateUtils';
 import { OrderCollateralPoolAndTokenLazyStore } from '../OrderCollateralPoolAndTokenLazyStore';
 
 interface DependentOrderHashes {
@@ -56,7 +56,7 @@ const DEFAULT_CLEANUP_JOB_INTERVAL_MS = 1000 * 60 * 60; // 1h
  * Watcher for a set of Transaction Orders
  *
  */
-export default class OrderStateWatcher {
+export class OrderStateWatcher {
   // region Members
   // *****************************************************************
   // ****                     Members                             ****
