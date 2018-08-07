@@ -519,7 +519,6 @@ export class OrderStateWatcher {
       if (!_.isEqual(orderState, this._orderStateByOrderHashCache[orderHash])) {
         // state has changes
         this._orderStateByOrderHashCache[orderHash] = orderState;
-        console.error(orderState);
         this._callbackIfExists(null, orderState);
       }
     }
