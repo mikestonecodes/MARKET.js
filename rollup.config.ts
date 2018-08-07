@@ -34,9 +34,7 @@ export default {
   ],
   external: [
     'lodash',
-    'web3',
-    'ethereumjs-abi',
-    'ethereumjs-util'
+    'web3'
   ],
   watch: {
     include: 'src/**'

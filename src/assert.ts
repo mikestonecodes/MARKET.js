@@ -7,7 +7,7 @@ import { ECSignature, Provider } from '@0xproject/types';
 import { promisify } from '@marketprotocol/types';
 
 import util from 'util';
-import * as ethUtil from 'ethereumjs-util';
+const ethUtil = require('ethereumjs-util');
 
 import { SchemaValidator } from './SchemaValidator';
 

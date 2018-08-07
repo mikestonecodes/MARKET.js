@@ -1,9 +1,9 @@
 import BigNumber from 'bignumber.js';
 import Web3 from 'web3';
 import * as _ from 'lodash';
-import * as ethABI from 'ethereumjs-abi';
-import * as ethUtil from 'ethereumjs-util';
 
+const ethABI = require('ethereumjs-abi');
+const ethUtil = require('ethereumjs-util');
 const BN = require('bn.js');
 
 // Types
@@ -12,7 +12,6 @@ import { Artifact, ECSignature, Order, SignedOrder } from '@marketprotocol/types
 import { constants } from '../constants';
 const fs = require('fs');
 import { ParsedContractName, SolidityTypes } from '../types';
-
 
 export const Utils = {
   /**
