@@ -101,10 +101,6 @@ export class EventWatcher {
 
   private async _pollForBlockchainEventsAsync(callback: EventWatcherCallback): Promise<void> {
     const pendingEvents = await this._getEventsAsync();
-    if (_.isUndefined(pendingEvents)) {
-      // HACK: This should never happen, but happens frequently on CI due to a ganache bug
-      return;
-    }
     if (pendingEvents.length === 0) {
       // HACK: Sometimes when node rebuilds the pending block we get back the empty result.
       // We don't want to emit a lot of removal events and bring them back after a couple of miliseconds,
@@ -123,8 +119,7 @@ export class EventWatcher {
       fromBlock: this._stateLayer,
       toBlock: this._stateLayer
     };
-    const events = await this._getLogsAsync(eventFilter);
-    return events;
+    return this._getLogsAsync(eventFilter);
   }
 
   private async _emitDifferencesAsync(
@@ -145,13 +140,7 @@ export class EventWatcher {
 
   private async _getLogsAsync(filter: IWatchFilter): Promise<LogEntry[]> {
     let fromBlock = filter.fromBlock;
-    if (_.isNumber(fromBlock)) {
-      fromBlock = this._web3.toHex(fromBlock);
-    }
     let toBlock = filter.toBlock;
-    if (_.isNumber(toBlock)) {
-      toBlock = this._web3.toHex(toBlock);
-    }
     const serializedFilter = {
       ...filter,
       fromBlock,

@@ -9,6 +9,7 @@ import { LogEntry } from '@marketprotocol/types';
 import { reportNodeCallbackErrors } from './utils';
 import { EventWatcher } from '../src/order_watcher/EventWatcher';
 import { LogEntryEvent } from '../src/types';
+import { DoneCallback } from '../node_modules/@0xproject/types';
 
 describe('EventWatcher', () => {
   let web3: Web3;
@@ -52,10 +53,6 @@ describe('EventWatcher', () => {
     eventWatcher = new EventWatcher(web3, pollingIntervalMs);
   });
 
-  afterEach(async () => {
-    //
-  });
-
   describe('subscribe', () => {
     it('should not throw if callback is a function', () => {
       expect(() => {
@@ -89,7 +86,7 @@ describe('EventWatcher', () => {
     });
   });
 
-  it('should trigger callback with removed events', async (done: DoneCallback) => {
+  it('should trigger callback with removed events', (done: DoneCallback) => {
     const initialLogs: LogEntry[] = [logA, logB];
     const changedLogs: LogEntry[] = [logA, logC];
     const expectedLogEvents = [
