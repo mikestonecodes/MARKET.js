@@ -226,13 +226,13 @@ export class OrderStateWatcher {
 
     // remove dependent collateral token orders
     const collateralTokenAddress = await this._collateralPoolAndTokenAddressStore.getCollateralTokenAddressAsync(
-      signedOrder
+      signedOrder.contractAddress
     );
     this._removeFromDependentOrderHashes(signedOrder.maker, collateralTokenAddress, orderHash);
 
     // remove dependent collateral pool orders
     const collateralPoolAddress = await this._collateralPoolAndTokenAddressStore.getCollateralPoolAddressAsync(
-      signedOrder
+      signedOrder.contractAddress
     );
     this._removeFromDependentOrderHashes(signedOrder.maker, collateralPoolAddress, orderHash);
 
@@ -277,7 +277,7 @@ export class OrderStateWatcher {
 
     // set related orders for collateral token
     const collateralTokenAddress = await this._collateralPoolAndTokenAddressStore.getCollateralTokenAddressAsync(
-      signedOrder
+      signedOrder.contractAddress
     );
     if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker][collateralTokenAddress])) {
       this._dependentOrderHashes[signedOrder.maker][collateralTokenAddress] = new Set();
@@ -286,7 +286,7 @@ export class OrderStateWatcher {
 
     // set related orders for collateral pool
     const collateralPoolAddress = await this._collateralPoolAndTokenAddressStore.getCollateralPoolAddressAsync(
-      signedOrder
+      signedOrder.contractAddress
     );
     if (_.isUndefined(this._dependentOrderHashes[signedOrder.maker][collateralPoolAddress])) {
       this._dependentOrderHashes[signedOrder.maker][collateralPoolAddress] = new Set();

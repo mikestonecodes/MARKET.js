@@ -107,10 +107,10 @@ export class OrderStateUtils {
     const mktTokenAddress = this._market.mktTokenContract.address;
     const mtkContractAddress = signedOrder.contractAddress;
     const collateralPoolAddress = await this._collateralPoolAndTokenAddressLazyStore.getCollateralPoolAddressAsync(
-      signedOrder
+      mtkContractAddress
     );
     const collateralTokenAddress = await this._collateralPoolAndTokenAddressLazyStore.getCollateralTokenAddressAsync(
-      signedOrder
+      mtkContractAddress
     );
 
     // TODO: needed collateral values should be cached too.

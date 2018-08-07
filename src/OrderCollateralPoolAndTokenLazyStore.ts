@@ -1,8 +1,6 @@
 import * as _ from 'lodash';
 
 import { ContractWrapper } from './contract_wrappers/ContractWrapper';
-import { SignedOrder } from '@marketprotocol/types';
-import { Utils } from '.';
 
 /**
  * Cache to make fetching collateral pool and collateral token addresses
@@ -15,11 +13,11 @@ export class OrderCollateralPoolAndTokenLazyStore {
   // ****                     Members                             ****
   // *****************************************************************
   private _poolAddresses: {
-    [orderHash: string]: string;
+    [marketContractAddress: string]: string;
   };
 
   private _tokenAddreses: {
-    [orderHash: string]: string;
+    [marketContractAddress: string]: string;
   };
 
   private _contractWrapper: ContractWrapper;
@@ -46,81 +44,75 @@ export class OrderCollateralPoolAndTokenLazyStore {
   // *****************************************************************
 
   /**
-   * Get collateral pool address for an order and caches it.
+   * Get collateral pool address for an market contract and caches it.
    * If address is already cached, the cached value is returned.
    *
-   * @param {SignedOrder} orderHash order to track
+   * @param {string} contractAddress Market Contract's Address
    */
-  public async getCollateralPoolAddressAsync(signedOrder: SignedOrder): Promise<string> {
-    const orderHash = this._getHash(signedOrder);
-    if (_.isUndefined(this._poolAddresses[orderHash])) {
+  public async getCollateralPoolAddressAsync(contractAddress: string): Promise<string> {
+    if (_.isUndefined(this._poolAddresses[contractAddress])) {
       const poolAddress = await this._contractWrapper.getCollateralPoolContractAddressAsync(
-        signedOrder.contractAddress
+        contractAddress
       );
-      this.setCollateralPoolAddress(signedOrder, poolAddress);
+      this.setCollateralPoolAddress(contractAddress, poolAddress);
     }
-    const cachedAddress = this._poolAddresses[orderHash];
+    const cachedAddress = this._poolAddresses[contractAddress];
     return cachedAddress;
   }
 
   /**
    * Set the collateral pool address for the order in the store (cache locally).
    *
-   * @param {SignedOrder} signedOrder
-   * @param {string} address
+   * @param {string} contractAddress
+   * @param {string} collateralPoolAddress
    */
-  public setCollateralPoolAddress(signedOrder: SignedOrder, address: string): void {
-    const orderHash = this._getHash(signedOrder);
-    this._poolAddresses[orderHash] = address;
+  public setCollateralPoolAddress(contractAddress: string, collateralPoolAddress: string): void {
+    this._poolAddresses[contractAddress] = collateralPoolAddress;
   }
 
   /**
    * Delete the cached collateral pool address for this order
    *
-   * @param {SignedOrder} signedOrder
+   * @param {string} contractAddress
    */
-  public deleteCollateralPoolAddress(signedOrder: SignedOrder): void {
-    const orderHash = this._getHash(signedOrder);
-    delete this._poolAddresses[orderHash];
+  public deleteCollateralPoolAddress(contractAddress: string): void {
+    delete this._poolAddresses[contractAddress];
   }
 
   /**
-   * Get collateral token address for an order and caches it.
+   * Get collateral token address for a market contract and caches it.
    * If address is already cached, the cached value is returned.
    *
-   * @param {SignedOrder} orderHash order to track
+   * @param {string} contractAddress Market Contract address
    */
-  public async getCollateralTokenAddressAsync(signedOrder: SignedOrder): Promise<string> {
-    const orderHash = this._getHash(signedOrder);
-    if (_.isUndefined(this._tokenAddreses[orderHash])) {
-      const tokenAddress = await this._contractWrapper.getCollateralTokenAddressAsync(
-        signedOrder.contractAddress
+  public async getCollateralTokenAddressAsync(contractAddress: string): Promise<string> {
+    if (_.isUndefined(this._tokenAddreses[contractAddress])) {
+      const collateralTokenAddress = await this._contractWrapper.getCollateralTokenAddressAsync(
+        contractAddress
       );
-      this.setCollateralTokenAddress(signedOrder, tokenAddress);
+      this.setCollateralTokenAddress(contractAddress, collateralTokenAddress);
     }
-    const cachedAddress = this._tokenAddreses[orderHash];
+    const cachedAddress = this._tokenAddreses[contractAddress];
     return cachedAddress;
   }
 
   /**
    * Set the collateral token address for the order in the store (cache locally).
    *
-   * @param {SignedOrder} signedOrder
-   * @param {string} address
+   * @param {string} contractAddress
+   * @param {string} collateralTokenAddress
    */
-  public setCollateralTokenAddress(signedOrder: SignedOrder, address: string): void {
-    const orderHash = this._getHash(signedOrder);
-    this._tokenAddreses[orderHash] = address;
+  public setCollateralTokenAddress(contractAddress: string, collateralTokenAddress: string): void {
+    this._tokenAddreses[contractAddress] = collateralTokenAddress;
   }
 
   /**
    * Delete the cached collateral token address for this order
    *
-   * @param {SignedOrder} signedOrder
+   * @param {string} contractAddress
    */
-  public deleteCollateralTokenAddress(signedOrder: SignedOrder): void {
-    const orderHash = this._getHash(signedOrder);
-    delete this._tokenAddreses[orderHash];
+  public deleteCollateralTokenAddress(contractAddress: string): void {
+    delete this._tokenAddreses[contractAddress];
   }
 
   /**
@@ -137,9 +129,6 @@ export class OrderCollateralPoolAndTokenLazyStore {
   // *****************************************************************
   // ****                     Private Methods                     ****
   // *****************************************************************
-  private _getHash(signedOrder: SignedOrder): string {
-    return Utils.getOrderHash(signedOrder);
-  }
   // endregion //Private Methods
   // region Event Handlers
   // *****************************************************************
