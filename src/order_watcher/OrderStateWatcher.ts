@@ -376,15 +376,7 @@ export class OrderStateWatcher {
       return;
     }
     const log = logIfExists as LogEntryEvent;
-    const maybeDecodedLog = this._abiDecoder.decodeLogEntryEvent<ContractEventArgs>(log);
-    const isLogDecoded = !_.isUndefined(
-      (maybeDecodedLog as DecodedLogEntry<ContractEventArgs>).event
-    );
-    if (!isLogDecoded) {
-      return;
-    }
-
-    const decodedLog = maybeDecodedLog as DecodedLogEntry<ContractEventArgs>;
+    const decodedLog = this._abiDecoder.decodeLogEntryEvent<ContractEventArgs>(log);
     let makerToken: string;
     let makerAddress: string;
     let orderHash: string;

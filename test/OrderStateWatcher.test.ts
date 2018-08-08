@@ -3,6 +3,7 @@ import { join } from 'path';
 import DoneCallback = jest.DoneCallback;
 
 import {
+  BlockParamLiteral,
   MarketError,
   OrderState,
   OrderStateInvalid,
@@ -158,6 +159,29 @@ describe('OrderStateWatcher', () => {
       })().catch(done);
     });
 
+    it('should emit OrderStateInvalid when order is fully cancelled', (done: DoneCallback) => {
+      (async () => {
+        await helper.fundCollateral({ address: helper.maker, deposit: true });
+
+        const orderQty = 5;
+        signedOrder = await helper.createOrderAsync({ orderQty });
+        await orderStateWatcher.addOrder(signedOrder);
+        const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
+          expect(orderState.isValid).toBeFalsy();
+          const invalidOrderState = orderState as OrderStateInvalid;
+          expect(invalidOrderState.error).toEqual(MarketError.OrderDead);
+        });
+        orderStateWatcher.subscribe(callback);
+
+        // cancel full quantity
+        const cancellableQty = new BigNumber(orderQty);
+        await helper.market.cancelOrderAsync(signedOrder, cancellableQty, {
+          from: helper.maker,
+          gas: 400000
+        });
+      })().catch(done);
+    });
+
     it('should emit OrderStateValid when order is partially filled', (done: DoneCallback) => {
       (async () => {
         await helper.fundCollateral({ address: helper.maker, deposit: true });
@@ -209,7 +233,7 @@ describe('OrderStateWatcher', () => {
       })().catch(done);
     });
 
-    it('should not emit OrderStateInvalid if maker removes locked MKT tokens', (done: DoneCallback) => {
+    it('should emit OrderStateInvalid if maker removes locked MKT tokens', (done: DoneCallback) => {
       (async () => {
         const feeRecipient = helper.ethAccounts[5];
         const fees = 6;
@@ -237,6 +261,30 @@ describe('OrderStateWatcher', () => {
         // transfer fees away
         const randomRecipient = helper.ethAccounts[4];
         await helper.marketToken.transferTx(randomRecipient, fees).send({ from: helper.maker });
+      })().catch(done);
+    });
+
+    it('should emit OrderStateInvalid when order expires', (done: DoneCallback) => {
+      (async () => {
+        await helper.fundCollateral({ address: helper.maker, deposit: true });
+        await helper.fundCollateral({ address: helper.taker, deposit: true });
+
+        const expirationTimeStamp = Math.floor(Date.now() / 1000) + 5; // expires 5 seconds from now
+        signedOrder = await helper.createOrderAsync({ expirationTimeStamp });
+        const orderHash = Utils.getOrderHash(signedOrder);
+        await orderStateWatcher.addOrder(signedOrder);
+
+        const callback = reportNodeCallbackErrors(done)((orderState: OrderState) => {
+          expect(orderState.isValid).toBeFalsy();
+          const validOrderState = orderState as OrderStateInvalid;
+          expect(validOrderState.orderHash).toEqual(orderHash);
+          expect(validOrderState.error).toEqual(MarketError.OrderExpired);
+        });
+        orderStateWatcher.subscribe(callback);
+
+        setTimeout(() => {
+          done(new Error('OrderStateInvalid not thrown for expired order'));
+        }, 10000);
       })().catch(done);
     });
   });

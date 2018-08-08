@@ -37,12 +37,8 @@ export class AbiDecoder {
    *
    * @param log Log Entry to decode
    */
-  public decodeLogEntryEvent<ArgsType>(log: LogEntry): DecodedLogEntry<ArgsType> | LogEntry {
+  public decodeLogEntryEvent<ArgsType>(log: LogEntry): DecodedLogEntry<ArgsType> {
     let [decodedLog] = abiDecoder.decodeLogs([log]);
-
-    if (_.isUndefined(decodedLog)) {
-      return log;
-    }
 
     return {
       ...log,
