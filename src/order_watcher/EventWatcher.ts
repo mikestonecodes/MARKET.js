@@ -46,6 +46,12 @@ export class EventWatcher {
   // ****                     Constructors                        ****
   // *****************************************************************
 
+  /**
+   *
+   * @param {Web3} web3
+   * @param {undefined | number} pollingIntervalIfExistsMs Even pooling interval
+   * @param {BlockParamLiteral} stateLayer Block to check
+   */
   constructor(
     web3: Web3,
     pollingIntervalIfExistsMs?: undefined | number,
@@ -70,6 +76,12 @@ export class EventWatcher {
   // ****                     Public Methods                      ****
   // *****************************************************************
 
+  /**
+   * Subscribes callback to receive updates of events emitted from the
+   * block.
+   *
+   * @param {EventWatcherCallback} callback callback function for event changes
+   */
   public subscribe(callback: EventWatcherCallback): void {
     assert.isFunction('callback', callback);
     if (!_.isUndefined(this._intervalIdIfExists)) {
@@ -85,6 +97,10 @@ export class EventWatcher {
     );
   }
 
+  /**
+   * Allows caller to stop receiving callbacks from a previous subscription.
+   *
+   */
   public unsubscribe(): void {
     this._lastEvents = [];
     if (!_.isUndefined(this._intervalIdIfExists)) {

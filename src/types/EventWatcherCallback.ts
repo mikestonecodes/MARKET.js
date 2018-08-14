@@ -1,5 +1,12 @@
 import { LogEntry } from '@marketprotocol/types';
 
+/**
+ * A LogEntry with an addition removed boolean flag to signify
+ * the type of the LogEntry as an Event.
+ *
+ * If removed is true, it means the event does not exist anymore
+ * in the logs of that block.
+ */
 export interface LogEntryEvent extends LogEntry {
   removed: boolean;
 }

@@ -761,8 +761,10 @@ export class ContractWrapper {
   }
 
   /**
+   * Retrieve the collateral token address for this market contract.
    *
    * @param marketContractAddress Market Contract Address
+   * @return {Promise<string>}
    */
   public async getCollateralTokenAddressAsync(marketContractAddress: string): Promise<string> {
     const contractSet: ContractSet = await this._getContractSetByMarketContractAddressAsync(
