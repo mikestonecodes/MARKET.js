@@ -765,8 +765,10 @@ export class ContractWrapper {
    * @param marketContractAddress Market Contract Address
    */
   public async getCollateralTokenAddressAsync(marketContractAddress: string): Promise<string> {
-    const marketContract: MarketContract = new MarketContract(this._web3, marketContractAddress);
-    return marketContract.COLLATERAL_TOKEN_ADDRESS;
+    const contractSet: ContractSet = await this._getContractSetByMarketContractAddressAsync(
+      marketContractAddress
+    );
+    return contractSet.collateralToken.address;
   }
 
   /**
