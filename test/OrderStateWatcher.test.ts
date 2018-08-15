@@ -125,7 +125,7 @@ describe('OrderStateWatcher', () => {
         orderStateWatcher.subscribe(callback);
 
         // withdraw collateral
-        const initialBalance = await helper.market.getUserAccountBalanceAsync(
+        const initialBalance = await helper.market.getUserUnallocatedCollateralBalanceAsync(
           signedOrder.contractAddress,
           signedOrder.maker
         );

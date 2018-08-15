@@ -199,7 +199,7 @@ export class BalanceAndAllowanceLazyStore {
       _.isUndefined(this._collateralBalance[contractAddress]) ||
       _.isUndefined(this._collateralBalance[contractAddress][userAddress])
     ) {
-      const balance = await this._contractWrapper.getUserAccountBalanceAsync(
+      const balance = await this._contractWrapper.getUserUnallocatedCollateralBalanceAsync(
         contractAddress,
         userAddress
       );

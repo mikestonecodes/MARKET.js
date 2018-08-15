@@ -34,7 +34,7 @@ describe('Token Balance and Allowance store', async () => {
     ],
     [
       'getCollateralBalanceAsync',
-      'getUserAccountBalanceAsync',
+      'getUserUnallocatedCollateralBalanceAsync',
       'deleteCollateralBalance',
       new BigNumber(5),
       [token, user]
