@@ -77,7 +77,7 @@ describe('Market class', () => {
   });
 
   it('Returns a contract name', async () => {
-    const result = await market.getMarketContractNameAsync(contractAddress);
+    const result = (await market.getContractMetaDataAsync(contractAddress)).contractName;
     expect(result).toBeDefined();
     expect(result).toBeString();
   });

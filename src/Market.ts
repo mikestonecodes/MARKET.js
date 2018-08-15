@@ -313,15 +313,6 @@ export class Market {
   }
 
   /**
-   * Gets the market contract name
-   * @param {string} marketContractAddress    Address of the Market contract
-   * @returns {Promise<string>}               The contract's name
-   */
-  public async getMarketContractNameAsync(marketContractAddress: string): Promise<string> {
-    return this.marketContractWrapper.getMarketContractNameAsync(marketContractAddress);
-  }
-
-  /**
    * Gets the market contract price decimal places
    * @param {string} marketContractAddress    Address of the Market contract
    * @returns {Promise<BigNumber>}            The contract's name
