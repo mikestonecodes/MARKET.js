@@ -52,8 +52,14 @@ describe('Order filled/cancelled store', async () => {
     orderQty = new BigNumber(100);
     price = new BigNumber(100000);
     fees = new BigNumber(0);
-    let makerCollateral = await market.getUserAccountBalanceAsync(contractAddress, maker);
-    let takerCollateral = await market.getUserAccountBalanceAsync(contractAddress, taker);
+    let makerCollateral = await market.getUserUnallocatedCollateralBalanceAsync(
+      contractAddress,
+      maker
+    );
+    let takerCollateral = await market.getUserUnallocatedCollateralBalanceAsync(
+      contractAddress,
+      taker
+    );
     await market.withdrawCollateralAsync(contractAddress, makerCollateral, {
       from: maker
     });
