@@ -83,9 +83,8 @@ describe('Market class', () => {
   });
 
   it('Returns contract price decimal places name', async () => {
-    const result: BigNumber = await market.getMarketContractPriceDecimalPlacesAsync(
-      contractAddress
-    );
+    const result: BigNumber = (await market.getContractMetaDataAsync(contractAddress))
+      .priceDecimalPlaces;
     expect(result).toBeDefined();
     expect(result.toNumber()).toBeNumber();
   });

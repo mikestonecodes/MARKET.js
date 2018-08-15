@@ -302,19 +302,6 @@ export class Market {
   // CONTRACT METHODS
 
   /**
-   * Gets the market contract price decimal places
-   * @param {string} marketContractAddress    Address of the Market contract
-   * @returns {Promise<BigNumber>}            The contract's name
-   */
-  public async getMarketContractPriceDecimalPlacesAsync(
-    marketContractAddress: string
-  ): Promise<BigNumber> {
-    return this.marketContractWrapper.getMarketContractPriceDecimalPlacesAsync(
-      marketContractAddress
-    );
-  }
-
-  /**
    * Gets contract meta data for the supplied market contract address.
    * @param marketContractAddress
    */
