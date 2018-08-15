@@ -49,17 +49,6 @@ export class OraclizeContractWrapper extends ContractWrapper {
   // *****************************************************************
   // ****                     Public Methods                      ****
   // *****************************************************************
-  /**
-   * Gets the MarketContract oracle query.
-   * @param {string} marketContractAddress   Address of the contract
-   * @returns {Promise<string>}                      The oracle query
-   */
-  public async getOracleQueryAsync(marketContractAddress: string): Promise<string> {
-    const contractSetWrapper: OraclizeContractSet = await this._getContractSetByMarketContractAddressAsync(
-      marketContractAddress
-    );
-    return contractSetWrapper.marketContractOraclize.ORACLE_QUERY;
-  }
 
   /**
    * Gets contract meta data for the supplied market contract address.

@@ -320,15 +320,6 @@ export class Market {
   }
 
   /**
-   * Get the oracle query for the MarketContract
-   * @param marketContractAddress   MarketContract address
-   * @returns {Promise<string>}     The oracle query
-   */
-  public async getOracleQueryAsync(marketContractAddress: string): Promise<string> {
-    return this.marketContractWrapper.getOracleQueryAsync(marketContractAddress);
-  }
-
-  /**
    * Get the history of contract fills for maker,taker or both sides of the trade.
    * @param {string} marketContractAddress       address of the MarketContract
    * @param {string} fromBlock                   from block #

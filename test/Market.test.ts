@@ -58,7 +58,7 @@ describe('Market class', () => {
   });
 
   it('Returns a oracle query URL', async () => {
-    const result = await market.getOracleQueryAsync(contractAddress);
+    const result = (await market.getContractMetaDataAsync(contractAddress)).oracleQuery;
     expect(result).toBeDefined();
     expect(result).toBeString();
     expect(isUrl(result.replace(/^.*\((.*)\)/, '$1'))).toBe(true);
