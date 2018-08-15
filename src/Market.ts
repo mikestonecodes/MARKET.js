@@ -342,15 +342,6 @@ export class Market {
   }
 
   /**
-   * Gets the contract expiration timestamp
-   * @param {string} marketContractAddress   MarketContract address
-   * @returns {Promise<BigNumber>}           Expiration timestamp
-   */
-  public async getContractExpirationAsync(marketContractAddress: string): Promise<BigNumber> {
-    return this.marketContractWrapper.getContractExpirationAsync(marketContractAddress);
-  }
-
-  /**
    * Gets the settlement status of the contract
    * @param {string} marketContractAddress    MarketContract address
    * @returns {Promise<boolean>}              True/false

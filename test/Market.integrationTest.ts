@@ -66,7 +66,7 @@ describe('Market class', () => {
   });
 
   it('Returns a contract expiration', async () => {
-    const result = await market.getContractExpirationAsync(contractAddress);
+    const result = (await market.getContractMetaDataAsync(contractAddress)).expirationTimeStamp;
     expect(result).toBeDefined();
     expect(result.toNumber()).toBeNumber();
   });
