@@ -204,10 +204,10 @@ export class ContractWrapper {
     }
 
     const makerCollateralBalance: BigNumber = new BigNumber(
-      await this.getUserAccountBalanceAsync(signedOrder.contractAddress, maker)
+      await this.getUserUnallocatedCollateralBalanceAsync(signedOrder.contractAddress, maker)
     );
     const takerCollateralBalance: BigNumber = new BigNumber(
-      await this.getUserAccountBalanceAsync(signedOrder.contractAddress, taker)
+      await this.getUserUnallocatedCollateralBalanceAsync(signedOrder.contractAddress, taker)
     );
 
     const neededCollateralMaker: BigNumber = await this.calculateNeededCollateralAsync(
@@ -465,7 +465,7 @@ export class ContractWrapper {
    * @param {BigNumber | string} userAddress     address of user
    * @returns {Promise<BigNumber>}               the user's currently unallocated token balance
    */
-  public async getUserAccountBalanceAsync(
+  public async getUserUnallocatedCollateralBalanceAsync(
     marketContractAddress: string,
     userAddress: string
   ): Promise<BigNumber> {

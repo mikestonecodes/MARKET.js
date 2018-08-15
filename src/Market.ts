@@ -163,16 +163,19 @@ export class Market {
   }
 
   /**
-   * Gets the user's currently unallocated token balance
+   * Gets the user's currently unallocated collateral token balance.
+   * The unallocated token balance is the balance that is already deposited into the
+   * collateral pool but has not yet be allocated for a particular trade for the marketContract.
+   *
    * @param {string} marketContractAddress            Address of the MarketContract
    * @param {BigNumber | string} userAddress          Address of user
    * @returns {Promise<BigNumber|null>}               The user's currently unallocated token balance
    */
-  public async getUserAccountBalanceAsync(
+  public async getUserUnallocatedCollateralBalanceAsync(
     marketContractAddress: string,
     userAddress: string
   ): Promise<BigNumber> {
-    return this.marketContractWrapper.getUserAccountBalanceAsync(
+    return this.marketContractWrapper.getUserUnallocatedCollateralBalanceAsync(
       marketContractAddress,
       userAddress
     );
