@@ -71,7 +71,7 @@ describe('Market class', () => {
   });
 
   it('Returns a settlement status', async () => {
-    const result = await market.isContractSettledAsync(contractAddress);
+    const result = (await market.getContractMetaDataAsync(contractAddress)).isSettled;
     expect(result).toBeDefined();
     expect(result).toBeBoolean();
   });

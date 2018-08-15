@@ -62,18 +62,6 @@ export class OraclizeContractWrapper extends ContractWrapper {
   }
 
   /**
-   * Gets the MarketContract expiration.
-   * @param {string} marketContractAddress   Address of the contract
-   * @returns {Promise<boolean>}                     Is this contract settled?
-   */
-  public async isContractSettledAsync(marketContractAddress: string): Promise<boolean> {
-    const contractSetWrapper: OraclizeContractSet = await this._getContractSetByMarketContractAddressAsync(
-      marketContractAddress
-    );
-    return contractSetWrapper.marketContractOraclize.isSettled;
-  }
-
-  /**
    * Gets contract meta data for the supplied market contract address.
    * @param marketContractAddress
    * @returns {Promise<OraclizeContractMetaData>}

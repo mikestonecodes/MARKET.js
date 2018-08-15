@@ -342,15 +342,6 @@ export class Market {
   }
 
   /**
-   * Gets the settlement status of the contract
-   * @param {string} marketContractAddress    MarketContract address
-   * @returns {Promise<boolean>}              True/false
-   */
-  public async isContractSettledAsync(marketContractAddress: string): Promise<boolean> {
-    return this.marketContractWrapper.isContractSettledAsync(marketContractAddress);
-  }
-
-  /**
    * Get the history of contract fills for maker,taker or both sides of the trade.
    * @param {string} marketContractAddress       address of the MarketContract
    * @param {string} fromBlock                   from block #
