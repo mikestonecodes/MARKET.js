@@ -761,6 +761,19 @@ export class ContractWrapper {
   }
 
   /**
+   * Retrieve the collateral token address for this market contract.
+   *
+   * @param marketContractAddress Market Contract Address
+   * @return {Promise<string>}
+   */
+  public async getCollateralTokenAddressAsync(marketContractAddress: string): Promise<string> {
+    const contractSet: ContractSet = await this._getContractSetByMarketContractAddressAsync(
+      marketContractAddress
+    );
+    return contractSet.collateralToken.address;
+  }
+
+  /**
    * Retrieves the owners allowance in baseUnits set to the spender's address.
    * @param {string} tokenAddress     The hex encoded contract Ethereum address where the ERC20 token is deployed.
    * @param {string} ownerAddress     The hex encoded user Ethereum address whose allowance to spenderAddress

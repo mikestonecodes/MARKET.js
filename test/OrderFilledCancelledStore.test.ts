@@ -48,7 +48,7 @@ describe('Order filled/cancelled store', async () => {
     collateralToken = await ERC20.createAndValidate(web3, collateralTokenAddress);
     collateralPoolAddress = await deployedMarketContract.MARKET_COLLATERAL_POOL_ADDRESS;
     collateralPool = await MarketCollateralPool.createAndValidate(web3, collateralPoolAddress);
-    initialCredit = new BigNumber(1e23);
+    initialCredit = new BigNumber(5e23);
     orderQty = new BigNumber(100);
     price = new BigNumber(100000);
     fees = new BigNumber(0);
@@ -128,6 +128,64 @@ describe('Order filled/cancelled store', async () => {
     const store = new OrderFilledCancelledLazyStore(market.marketContractWrapper);
 
     await store.getQtyFilledOrCancelledAsync(deployedMarketContract.address, orderHash);
+    // trade another 2
+    await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
+      from: taker,
+      gas: 400000
+    });
+
+    const qty = await store.getQtyFilledOrCancelledAsync(deployedMarketContract.address, orderHash);
+
+    expect(qty).toEqual(tradeQty);
+  });
+
+  it('Purges the caches quantity', async () => {
+    const tradeQty = new BigNumber(4);
+    await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
+      from: taker,
+      gas: 400000
+    });
+
+    const orderHash = await market.createOrderHashAsync(signedOrder);
+    const store = new OrderFilledCancelledLazyStore(market.marketContractWrapper);
+
+    await store.getQtyFilledOrCancelledAsync(deployedMarketContract.address, orderHash);
+    await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
+      from: taker,
+      gas: 400000
+    });
+
+    store.deleteQtyFilledOrCancelled(deployedMarketContract.address, orderHash);
+    const qty = await store.getQtyFilledOrCancelledAsync(deployedMarketContract.address, orderHash);
+
+    expect(qty).toEqual(tradeQty);
+  });
+
+  it('does not throw error when deleteing non-caches quantity', async () => {
+    const store = new OrderFilledCancelledLazyStore(market.marketContractWrapper);
+    expect(() =>
+      store.deleteQtyFilledOrCancelled(deployedMarketContract.address, '')
+    ).not.toThrow();
+  });
+
+  it('also purges the caches with deleteAll', async () => {
+    const tradeQty = new BigNumber(4);
+    await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
+      from: taker,
+      gas: 400000
+    });
+
+    const orderHash = await market.createOrderHashAsync(signedOrder);
+    const store = new OrderFilledCancelledLazyStore(market.marketContractWrapper);
+
+    await store.getQtyFilledOrCancelledAsync(deployedMarketContract.address, orderHash);
+    await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
+      from: taker,
+      gas: 400000
+    });
+
+    // delete all caches
+    store.deleteAll();
     const qty = await store.getQtyFilledOrCancelledAsync(deployedMarketContract.address, orderHash);
 
     expect(qty).toEqual(tradeQty);
