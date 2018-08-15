@@ -53,7 +53,7 @@ describe('Market class', () => {
   });
 
   it('Returns a collateral pool contract address', async () => {
-    const result = await market.getCollateralPoolContractAddressAsync(contractAddress);
+    const result = (await market.getContractMetaDataAsync(contractAddress)).collateralPoolAddress;
     isValidAddress(result);
   });
 

@@ -302,17 +302,6 @@ export class Market {
   // CONTRACT METHODS
 
   /**
-   * Gets the collateral pool contract address
-   * @param {string} marketContractAddress    Address of the Market contract
-   * @returns {Promise<string>}               The contract's collateral pool address
-   */
-  public async getCollateralPoolContractAddressAsync(
-    marketContractAddress: string
-  ): Promise<string> {
-    return this.marketContractWrapper.getCollateralPoolContractAddressAsync(marketContractAddress);
-  }
-
-  /**
    * Gets the market contract price decimal places
    * @param {string} marketContractAddress    Address of the Market contract
    * @returns {Promise<BigNumber>}            The contract's name
