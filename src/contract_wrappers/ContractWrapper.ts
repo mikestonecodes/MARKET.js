@@ -272,32 +272,6 @@ export class ContractWrapper {
   }
 
   /**
-   * Gets the collateral pool contract address
-   * @param {string} marketContractAddress    Address of the Market contract.
-   * @returns {Promise<string>}               The contract's name
-   */
-  public async getMarketContractNameAsync(marketContractAddress: string): Promise<string> {
-    const contractSetWrapper: ContractSet = await this._getContractSetByMarketContractAddressAsync(
-      marketContractAddress
-    );
-    return contractSetWrapper.marketContract.CONTRACT_NAME;
-  }
-
-  /**
-   * Gets the market contract price decimal places
-   * @param {string} marketContractAddress    Address of the Market contract
-   * @returns {Promise<BigNumber>}            The contract's price decimal places
-   */
-  public async getMarketContractPriceDecimalPlacesAsync(
-    marketContractAddress: string
-  ): Promise<BigNumber> {
-    const contractSetWrapper: ContractSet = await this._getContractSetByMarketContractAddressAsync(
-      marketContractAddress
-    );
-    return contractSetWrapper.marketContract.PRICE_DECIMAL_PLACES;
-  }
-
-  /**
    * Gets the history of contract fills for maker/taker/or both.
    * @param {string} marketContractAddress       address of the MarketContract
    * @param {string} fromBlock                   from block #
