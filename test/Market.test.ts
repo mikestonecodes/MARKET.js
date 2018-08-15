@@ -52,41 +52,43 @@ describe('Market class', () => {
     });
   });
 
-  it('Returns a collateral pool contract address', async () => {
-    const result = (await market.getContractMetaDataAsync(contractAddress)).collateralPoolAddress;
-    isValidAddress(result);
-  });
+  describe('getContractMetaDataAsync', () => {
+    it('Returns a collateral pool contract address', async () => {
+      const result = (await market.getContractMetaDataAsync(contractAddress)).collateralPoolAddress;
+      isValidAddress(result);
+    });
 
-  it('Returns a oracle query URL', async () => {
-    const result = (await market.getContractMetaDataAsync(contractAddress)).oracleQuery;
-    expect(result).toBeDefined();
-    expect(result).toBeString();
-    expect(isUrl(result.replace(/^.*\((.*)\)/, '$1'))).toBe(true);
-  });
+    it('Returns a oracle query URL', async () => {
+      const result = (await market.getContractMetaDataAsync(contractAddress)).oracleQuery;
+      expect(result).toBeDefined();
+      expect(result).toBeString();
+      expect(isUrl(result.replace(/^.*\((.*)\)/, '$1'))).toBe(true);
+    });
 
-  it('Returns a contract expiration', async () => {
-    const result = (await market.getContractMetaDataAsync(contractAddress)).expirationTimeStamp;
-    expect(result).toBeDefined();
-    expect(result.toNumber()).toBeNumber();
-  });
+    it('Returns a contract expiration', async () => {
+      const result = (await market.getContractMetaDataAsync(contractAddress)).expirationTimeStamp;
+      expect(result).toBeDefined();
+      expect(result.toNumber()).toBeNumber();
+    });
 
-  it('Returns a settlement status', async () => {
-    const result = (await market.getContractMetaDataAsync(contractAddress)).isSettled;
-    expect(result).toBeDefined();
-    expect(result).toBeBoolean();
-  });
+    it('Returns a settlement status', async () => {
+      const result = (await market.getContractMetaDataAsync(contractAddress)).isSettled;
+      expect(result).toBeDefined();
+      expect(result).toBeBoolean();
+    });
 
-  it('Returns a contract name', async () => {
-    const result = (await market.getContractMetaDataAsync(contractAddress)).contractName;
-    expect(result).toBeDefined();
-    expect(result).toBeString();
-  });
+    it('Returns a contract name', async () => {
+      const result = (await market.getContractMetaDataAsync(contractAddress)).contractName;
+      expect(result).toBeDefined();
+      expect(result).toBeString();
+    });
 
-  it('Returns contract price decimal places name', async () => {
-    const result: BigNumber = (await market.getContractMetaDataAsync(contractAddress))
-      .priceDecimalPlaces;
-    expect(result).toBeDefined();
-    expect(result.toNumber()).toBeNumber();
+    it('Returns contract price decimal places name', async () => {
+      const result: BigNumber = (await market.getContractMetaDataAsync(contractAddress))
+        .priceDecimalPlaces;
+      expect(result).toBeDefined();
+      expect(result.toNumber()).toBeNumber();
+    });
   });
 
   it('Returns a tokens balance', async () => {
