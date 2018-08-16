@@ -110,7 +110,7 @@
     "setupTestFrameworkScriptFile": "jest-extended"
   },
   "dependencies": {
-    "@marketprotocol/abis": "0.0.1",
+    "@marketprotocol/abis": "0.0.2",
     "abi-decoder": "^1.1.0",
     "bignumber.js": "^7.2.1",
     "bintrees": "^1.0.2",
