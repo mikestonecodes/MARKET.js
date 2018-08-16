@@ -176,11 +176,10 @@ export const Utils = {
     };
   },
 
-  /*
+  /**
    * Generates the order hash for an order, synchronously.
-   *
    * @param {Order | SignedOrder} order
-   * @returns {string}
+   * @return {string}
    */
   getOrderHash(order: Order | SignedOrder): string {
     const orderParts = [
