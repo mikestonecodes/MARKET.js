@@ -69,10 +69,10 @@ exec('git tag', (code, stdout, stderr) => {
 
 
  cd(tmpfile)
-  exec(`git clone --depth 1 https://github.com/MARKETProtocol/docs.git -b gh-pages` , (code, stdout, stderr) => {
-    cp('-Rf',"docs/*",`alltags`)
+//  exec(`git clone --depth 1 https://github.com/MARKETProtocol/docs.git -b gh-pages` , (code, stdout, stderr) => {
+    //cp('-Rf',"docs/*",`alltags`)
     uploadToAws()
-  });
+  //});
 
 
 
