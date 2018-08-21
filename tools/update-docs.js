@@ -3,7 +3,6 @@ const { cd, exec, echo, touch, mkdir,cp } = require("shelljs")
 const { readFileSync } = require("fs")
 const url = require("url")
 const s3 = require("s3")
-console.log(process.argv)
 let tmpfile= process.env.DOC_TMP_DIR||'/tmp/docs-aws'
 require('dotenv').config()
 echo("Deploying docs!!!")
